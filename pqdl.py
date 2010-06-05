@@ -58,7 +58,7 @@ Please don't abuse it."""
        
     #usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [-r] [-w] [-z [-k]] [pq_1 pq_2 ...]"
 
-    parser = optparse.OptionParser(description=desc, version="%prog 0.1", epilog=epilog)
+    parser = optparse.OptionParser(description=desc, version="%prog 0.1-trunk", epilog=epilog)
     parser.add_option('-u', '--username', help="Username on GC.com")
     parser.add_option('-p', '--password', help="Password on GC.com")
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files [default: %default]", default=os.getcwd())

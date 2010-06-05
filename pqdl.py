@@ -34,9 +34,6 @@ import atexit
 #from termcolor import colored as color
 #from colorama import init, Fore, Style
 
-def colored(string, color):
-    return string
-
 def reset_colorama():
     print Style.DIM
 
@@ -44,7 +41,7 @@ def reset_colorama():
 #init()
 
 def error(msg):
-    sys.stderr.write(colored("\n%s: error: %s\n",'red') % (os.path.basename(sys.argv[0]), str(msg)))
+    sys.stderr.write("\n%s: error: %s\n") % (os.path.basename(sys.argv[0]), str(msg))
     sys.exit(1)
 
 
@@ -60,7 +57,7 @@ Please don't abuse it."""
        
     #usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [-r] [-w] [-z [-k]] [pq_1 pq_2 ...]"
 
-    parser = optparse.OptionParser(description=desc, version="%prog 0.1-trunk", epilog=epilog)
+    parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog)
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files [default: %default]", default=os.getcwd())
@@ -127,12 +124,11 @@ def delete_pqs(browser, chkid):
     assert isinstance(browser, mechanize.Browser)
     browser.open("http://www.geocaching.com/pocket/default.aspx")
     browser.select_form(name="aspnetForm")
-    for pq in chkid:
-        browser.form.find_control(id="chk%s" % (pq))
+    browser.form.set_all_readonly(False)
+    browser.form['ctl00$ContentBody$PQDownloadList$hidIds'] = ",".join(chkid) + ","
+    browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl04$lnkDeleteSelected"
     browser.submit()
     pass
-    
-    
     
 def slugify(value):
     """
@@ -154,37 +150,41 @@ def getLinkDB(browser):
     
     linklist = []
     for link in links:
-        linklist.append({
-            'index': link.contents[3].contents[0].strip('.'),
-            'url': link.contents[5].contents[2]['href'],
-            'name': link.contents[5].contents[2].contents[0],
-            'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
-            'size': link.contents[7].contents[0],
-            'count': link.contents[9].contents[0],
-            'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
-            'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
-            'chkdelete': link.contents[1].contents[0]['value'],
-        })
+        try:
+            linklist.append({
+                'index': link.contents[3].contents[0].strip('.'),
+                'url': link.contents[5].contents[2]['href'],
+                'name': link.contents[5].contents[2].contents[0],
+                'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
+                'size': link.contents[7].contents[0],
+                'count': link.contents[9].contents[0],
+                'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
+                'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
+                'chkdelete': link.contents[1].contents[0]['value'],
+            })
+        except IndexError as e:
+            print "MyFinds skipped because it can't be deleted.\n"
+            
         
     return linklist
     
 def download_pq(link, filename, browser):
     def _reporthook(count, blockSize, totalSize):
         percent = int(count*blockSize*100/totalSize)
-        sys.stdout.write("\r  %s %s" % (colored('>','red'),colored(str(percent)+'%','red')))
+        sys.stdout.write("\r  > %s%" % (str(percent)))
         sys.stdout.flush()
 
     baseurl = 'http://www.geocaching.com/'
     isinstance(browser, mechanize.Browser)
     browser.retrieve(baseurl+link, filename, _reporthook)
-    print '\r  %s %s\n' % (colored('>','cyan'), colored('Done.','green'))
+    print '\r  > Done.\n'
     
 def print_section(name):
     name = " %s " % name
-    print colored(name.center(50,'#') + '\n', 'yellow')
+    print name.center(50,'#') + '\n'
     
 def main():
-    print colored("\n-> PQdl by leoluk. Updates on ",'cyan')+colored('www.leoluk.de/paperless-caching/pqdl\n','red')
+    print "\n-> PQdl v%s by leoluk. Updates on www.leoluk.de/paperless-caching/pqdl\n" % (version)
     opts, args = optparse_setup()
     browser = init_mechanize(opts.httpdebug)
     print "-> LOGGING IN"
@@ -196,17 +196,17 @@ def main():
         print_section("DEBUG - LINK DATABASE")
         for link in linklist:
             for field, data in link.iteritems():
-                print '%s %s' % (colored(field,'grey')+':', data)
+                print '%s: %s' % (field, data)
             print '\n'      
         
     print_section("SELECTING FILES")
     if args == []:
-        print colored("No arguments given, downloading all PQs.\n",'grey')
+        print "No arguments given, downloading all PQs.\n"
     dllist = []
     for link in linklist:
         assert isinstance(args, list)
         if (args.count(link['friendlyname'])) | (args == []):
-            print '-> "%s" will be downloaded' % colored(link['name'],'green')
+            print '-> "%s" will be downloaded' % link['name']
             dllist.append(link)
         else:
             if opts.debug:
@@ -220,9 +220,9 @@ def main():
     filelist = []
     for n, link in enumerate(dllist):
         if link['name'] != link['friendlyname']:
-            print colored('>>> Downloading %d/%d: "%s" (Friendly Name: %s) (%s) [%s]', 'red') % (n+1, len(dllist), link['name'], link['friendlyname'], link['size'], link['date'])
+            print '>>> Downloading %d/%d: "%s" (Friendly Name: %s) (%s) [%s]' % (n+1, len(dllist), link['name'], link['friendlyname'], link['size'], link['date'])
         else:
-            print colored('>>> Downloading %d/%d: "%s" (%s) [%s]', 'red') % (n+1, len(dllist), link['name'], link['size'], link['date'])
+            print '>>> Downloading %d/%d: "%s" (%s) [%s]' % (n+1, len(dllist), link['name'], link['size'], link['date'])
         filename = '%s.pqtmp' % (link['friendlyname'])
         link['filename'] = filename
         download_pq(link['url'],filename, browser)  
@@ -237,7 +237,7 @@ def main():
             os.remove(link['realfilename'])
         os.rename(link['filename'],link['realfilename'])
     
-    #delete_pq(browser, '3019993')
+    delete_pqs(browser, ['4720967'])
 
 if __name__ == "__main__":
     main()

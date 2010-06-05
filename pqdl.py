@@ -51,7 +51,7 @@ def optparse_setup():
     desc = __doc__
     epilog = """Pass the names of the Pocket Queries you want to download as
 parameters (pq_1 pq_2 ...). If none given, it will try to 
-download all of them. (IMPORTANT: the Pocket Queries needs to be zipped!)
+download all of them. The name need to be one word.(IMPORTANT: the Pocket Queries needs to be zipped!)
 When not using -s, it will add timestamps to the filename of every downloaded file according to the "Last Generated" dates on the PQ site.
 This tool probably violates the Terms of Service by Groundspeak. 
 Please don't abuse it."""
@@ -148,11 +148,12 @@ def getLinkDB(browser):
         linklist.append({
             'index': link.contents[3].contents[0].strip('.'),
             'url': link.contents[5].contents[2]['href'],
-            'name': link.contents[5].contents[2].contents[0],
+            'rawname': link.contents[5].contents[2].contents[0],
+            'name': slugify(link.contents[5].contents[2].contents[0]),
             'size': link.contents[7].contents[0],
             'count': link.contents[9].contents[0],
             'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
-            'nextgen': link.contents[11].contents[0].split(' ',1)[1][1:-1],
+            'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
             'chkdelete': link.contents[1].contents[0]['value'],
         })
         
@@ -196,11 +197,11 @@ def main():
     for link in linklist:
         assert isinstance(args, list)
         if (args.count(link['name'])) | (args == []):
-            print "-> %s will be downloaded" % colored(link['name'],'green')
+            print "-> %s will be downloaded" % colored(link['rawname'],'green')
             dllist.append(link)
         else:
             if opts.debug:
-                print "-> DEBUG: %s skipped because arguments are not empty but %s is not included." % (colored(link['name'],'red'),link['name'])
+                print "-> DEBUG: %s skipped because arguments are not empty but \"%s\" is not included." % (link['rawname'],link['name'])
     print '\n'
     
     print_section("DOWNLOADING SELECTED FILES")
@@ -218,7 +219,6 @@ def main():
     if dllist == []:
         print "No downloads to process.\n"
     for link in dllist:
-        link['name'] = slugify(link['name'])
         link['realfilename'] = ('%s_%s.zip' % (link['name'],link['date']) if not opts.singlefile else '%s.zip' % (link['name']))
         print "%s -> %s" % (link['filename'],link['realfilename'])
         if os.path.isfile(link['realfilename']):

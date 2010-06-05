@@ -125,7 +125,15 @@ def delete_pq(browser, chkid):
     browser.open("http://www.geocaching.com/pocket/default.aspx")
     browser.select_form(name="aspnetForm")
     
-    
+def slugify(value):
+    """
+    Normalizes string, converts to lowercase, removes non-alpha characters,
+    and converts spaces to hyphens.
+    """
+    import unicodedata
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
+    value = unicode(re.sub('[^\w\s-]', '', value).strip())
+    return re.sub('[-\s]+', '-', value)
     
 def getLinkDB(browser):
     """Gets the link DB. Requires login first!"""
@@ -210,6 +218,7 @@ def main():
     if dllist == []:
         print "No downloads to process.\n"
     for link in dllist:
+        link['name'] = slugify(link['name'])
         link['realfilename'] = ('%s_%s.zip' % (link['name'],link['date']) if not opts.singlefile else '%s.zip' % (link['name']))
         print "%s -> %s" % (link['filename'],link['realfilename'])
         if os.path.isfile(link['realfilename']):

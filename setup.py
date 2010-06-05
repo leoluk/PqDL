@@ -11,7 +11,7 @@ setup(
             "ascii": 1,
             "bundle_files": 1,
             "dll_excludes": excludes,
-            "packages": "encodings",
+            "packages": ["encodings","xml"],
             "dist_dir": "dist"
             }
         },

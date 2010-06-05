@@ -20,6 +20,8 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl
 """
 
+version = "0.1.0-beta"
+
 import mechanize
 import optparse
 import cookielib

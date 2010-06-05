@@ -51,7 +51,7 @@ def optparse_setup():
     desc = __doc__
     epilog = """Pass the names of the Pocket Queries you want to download as
 parameters (pq_1 pq_2 ...). If none given, it will try to 
-download all of them. The name need to be one word.(IMPORTANT: the Pocket Queries needs to be zipped!)
+download all of them. You need to specify the 'friendly name' of a PQ if it contains spaces or special chars. Please run with -d to get the friendly name. If usernames or passwords have spaces, set them in quotes. (IMPORTANT: the Pocket Queries needs to be zipped!)
 When not using -s, it will add timestamps to the filename of every downloaded file according to the "Last Generated" dates on the PQ site.
 This tool probably violates the Terms of Service by Groundspeak. 
 Please don't abuse it."""
@@ -148,8 +148,8 @@ def getLinkDB(browser):
         linklist.append({
             'index': link.contents[3].contents[0].strip('.'),
             'url': link.contents[5].contents[2]['href'],
-            'rawname': link.contents[5].contents[2].contents[0],
-            'name': slugify(link.contents[5].contents[2].contents[0]),
+            'name': link.contents[5].contents[2].contents[0],
+            'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
             'size': link.contents[7].contents[0],
             'count': link.contents[9].contents[0],
             'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
@@ -196,12 +196,12 @@ def main():
     dllist = []
     for link in linklist:
         assert isinstance(args, list)
-        if (args.count(link['name'])) | (args == []):
-            print "-> %s will be downloaded" % colored(link['rawname'],'green')
+        if (args.count(link['friendlyname'])) | (args == []):
+            print '-> "%s" will be downloaded' % colored(link['name'],'green')
             dllist.append(link)
         else:
             if opts.debug:
-                print "-> DEBUG: %s skipped because arguments are not empty but \"%s\" is not included." % (link['rawname'],link['name'])
+                print "-> DEBUG: \"%s\" skipped because %s is not in the arguments list." % (link['name'],link['friendlyname'])
     print '\n'
     
     print_section("DOWNLOADING SELECTED FILES")
@@ -210,8 +210,11 @@ def main():
         dllist = []
     filelist = []
     for n, link in enumerate(dllist):
-        print colored(">>> Downloading %d/%d (ID %s): %s (%s) [%s]", 'red') % (n+1, len(dllist), link['index'], link['name'], link['size'], link['date'])
-        filename = '%s.pqtmp' % (link['name'])
+        if link['name'] != link['friendlyname']:
+            print colored('>>> Downloading %d/%d: "%s" (Friendly Name: %s) (%s) [%s]', 'red') % (n+1, len(dllist), link['name'], link['friendlyname'], link['size'], link['date'])
+        else:
+            print colored('>>> Downloading %d/%d: "%s" (%s) [%s]', 'red') % (n+1, len(dllist), link['name'], link['size'], link['date'])
+        filename = '%s.pqtmp' % (link['friendlyname'])
         link['filename'] = filename
         download_pq(link['url'],filename, browser)  
     
@@ -219,7 +222,7 @@ def main():
     if dllist == []:
         print "No downloads to process.\n"
     for link in dllist:
-        link['realfilename'] = ('%s_%s.zip' % (link['name'],link['date']) if not opts.singlefile else '%s.zip' % (link['name']))
+        link['realfilename'] = ('%s_%s.zip' % (link['friendlyname'],link['date']) if not opts.singlefile else '%s.zip' % (link['friendlyname']))
         print "%s -> %s" % (link['filename'],link['realfilename'])
         if os.path.isfile(link['realfilename']):
             os.remove(link['realfilename'])
@@ -227,5 +230,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    #print Style.DIM
     

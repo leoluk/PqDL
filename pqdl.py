@@ -59,8 +59,8 @@ Please don't abuse it."""
     #usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [-r] [-w] [-z [-k]] [pq_1 pq_2 ...]"
 
     parser = optparse.OptionParser(description=desc, version="%prog 0.1-trunk", epilog=epilog)
-    parser.add_option('-u', '--username', help="Username on GC.com")
-    parser.add_option('-p', '--password', help="Password on GC.com")
+    parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
+    parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files [default: %default]", default=os.getcwd())
     #parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE!", default=False, action='store_true')
     parser.add_option('-s', '--singlefile', help="Overwrite existing files. When using this option, there won't be any timestamps added! (so just one file for every PQ in your DL folder)", action="store_true", default=False)
@@ -119,11 +119,18 @@ def login_gc(browser, username, password):
     response = browser.response().read()
     #assert isinstance(response, str)
     if response.find('http://www.geocaching.com/my/') == -1:
-        raise error("Could not log in. Please check your password.")
+        raise error("Could not log in. Please check your password.\nIf your username or password contains spaces, put it into parentheses!")
 
-def delete_pq(browser, chkid):
+def delete_pqs(browser, chkid):
+    assert isinstance(browser, mechanize.Browser)
     browser.open("http://www.geocaching.com/pocket/default.aspx")
     browser.select_form(name="aspnetForm")
+    for pq in chkid:
+        browser.form.find_control(id="chk%s" % (pq))
+    browser.submit()
+    pass
+    
+    
     
 def slugify(value):
     """
@@ -227,6 +234,8 @@ def main():
         if os.path.isfile(link['realfilename']):
             os.remove(link['realfilename'])
         os.rename(link['filename'],link['realfilename'])
+    
+    #delete_pq(browser, '3019993')
 
 if __name__ == "__main__":
     main()

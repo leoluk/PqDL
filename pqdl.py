@@ -224,7 +224,7 @@ def main():
 
     print_section("SELECTING FILES")
     if linklist == []:
-        print "No valid Pocket Queries found."
+        print "No valid Pocket Queries found. (try -d)"
         dllist = []
     else:
         if args == []:
@@ -244,7 +244,7 @@ def main():
                     print "-> DEBUG: \"%s\" skipped because %s is not in the arguments list." % (link['name'],link['friendlyname'])
         if dllist == []:
             print "All PQs skipped. Use -d to see why." if not opts.debug else "\nAll PQs skipped."
-        print '\n'
+    print '\n'
 
     print_section("DOWNLOADING SELECTED FILES")
     if opts.list:
@@ -262,7 +262,7 @@ def main():
 
     print_section("PROCESSING DOWNLOADED FILES")
     if dllist == []:
-        print "No downloads to process.\n"
+        print "No downloads to process. (try -d)\n"
     for link in dllist:
         link['realfilename'] = ('%s_%s.zip' % (link['friendlyname'],link['date']) if not opts.singlefile else '%s.zip' % (link['friendlyname']))
         print "%s -> %s" % (link['filename'],link['realfilename'])

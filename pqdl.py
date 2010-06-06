@@ -20,7 +20,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl
 """
 
-version = "0.2.0-stable"
+version = "0.2.1-trunk"
 
 import mechanize
 import optparse
@@ -68,6 +68,7 @@ Please don't abuse it."""
     #parser.add_option('-k', '--keepzip', help="Do not delete the original ZIP files (to be used with -z)", default=False, action='store_true')
     parser.add_option('-d', '--debug', help="Debug output (RECOMMENDED)", default=False, action='store_true')
     parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
+    parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     #parser.add_option('-c', '--colored', help="Colored ouput", default=False, action='store_true')
     pr, ar = parser.parse_args()
@@ -121,7 +122,7 @@ def login_gc(browser, username, password):
     if response.find('http://www.geocaching.com/my/') == -1:
         raise error("Could not log in. Please check your password.\nIf your username or password contains spaces, put it into parentheses!")
 
-def delete_pqs(browser, chkid):
+def delete_pqs(browser, chkid, debug):
     assert isinstance(browser, mechanize.Browser)
     browser.open("http://www.geocaching.com/pocket/default.aspx")
     browser.select_form(name="aspnetForm")
@@ -129,6 +130,9 @@ def delete_pqs(browser, chkid):
     browser.form['ctl00$ContentBody$PQDownloadList$hidIds'] = ",".join(chkid) + ","
     browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl03$lnkDeleteSelected"
     browser.submit()
+    if debug:
+        print_section("\n\nHTTP REMOVE DEBUG\n")
+        print browser.response().read()
     pass
 
 def slugify(value):
@@ -284,7 +288,7 @@ def main():
             print "Pocket Query \"%s\" will be removed (ID: %s)." % (link['name'], link['chkdelete'])
         if rmlist != []:
             print "\n-> REMOVING POCKET QUERIES..."
-            delete_pqs(browser, rmlist)
+            delete_pqs(browser, rmlist, opts.httpremovedebug)
 
 
 if __name__ == "__main__":

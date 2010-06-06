@@ -41,7 +41,7 @@ def reset_colorama():
 #init()
 
 def error(msg):
-    sys.stderr.write("\n%s: error: %s\n") % (os.path.basename(sys.argv[0]), str(msg))
+    sys.stderr.write("\n%s: error: %s\n" % (os.path.basename(sys.argv[0]), msg)) 
     sys.exit(1)
 
 

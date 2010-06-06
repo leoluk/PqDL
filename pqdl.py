@@ -152,6 +152,7 @@ def getLinkDB(browser):
     for link in links:
         try:
             linklist.append({
+                'type': 'normal',
                 'index': link.contents[3].contents[0].strip('.'),
                 'url': link.contents[5].contents[2]['href'],
                 'name': link.contents[5].contents[2].contents[0],
@@ -163,7 +164,17 @@ def getLinkDB(browser):
                 'chkdelete': link.contents[1].contents[0]['value'],
             })
         except IndexError as e:
-            print "MyFinds skipped because it can't be deleted.\n"
+            linklist.append({
+                'type': 'nodelete',
+                'index': link.contents[3].contents[0].strip('.'),
+                'url': link.contents[5].contents[2]['href'],
+                'name': link.contents[5].contents[2].contents[0],
+                'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
+                'size': link.contents[7].contents[0],
+                'count': link.contents[9].contents[0],
+                'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
+                'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
+            })
             
         
     return linklist
@@ -237,7 +248,7 @@ def main():
             os.remove(link['realfilename'])
         os.rename(link['filename'],link['realfilename'])
     
-    delete_pqs(browser, ['4720967'])
+    #delete_pqs(browser, ['4720967'])
 
 if __name__ == "__main__":
     main()

@@ -49,30 +49,31 @@ def optparse_setup():
     """Parsing options given to PqDL"""
     desc = __doc__
     epilog = """Pass the names of the Pocket Queries you want to download as
-parameters (pq_1 pq_2 ...). If none given, it will try to 
-download all of them. You need to specify the 'friendly name' of a PQ if it contains spaces or special chars. Please run with -d to get the friendly name. If usernames or passwords have spaces, set them in quotes. (IMPORTANT: the Pocket Queries needs to be zipped!)
+parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to 
+download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name' of a PQ if it contains spaces or special chars. Please run with -d to get the friendly name. If usernames or passwords have spaces, set them in quotes. (IMPORTANT: the Pocket Queries needs to be zipped!)
 When not using -s, it will add timestamps to the filename of every downloaded file according to the "Last Generated" dates on the PQ site.
 This tool probably violates the Terms of Service by Groundspeak. 
 Please don't abuse it."""
-       
+
     #usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [-r] [-w] [-z [-k]] [pq_1 pq_2 ...]"
 
     parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog)
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files [default: %default]", default=os.getcwd())
-    #parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE!", default=False, action='store_true')
+    parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE!", default=False, action='store_true')
+    parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed.", default=False, action='store_true')
     parser.add_option('-s', '--singlefile', help="Overwrite existing files. When using this option, there won't be any timestamps added! (so just one file for every PQ in your DL folder)", action="store_true", default=False)
     #parser.add_option('-z', '--unzip', help="Unzip the downloaded ZIP files and delete the originals.", action="store_true", default=False)
     #parser.add_option('-k', '--keepzip', help="Do not delete the original ZIP files (to be used with -z)", default=False, action='store_true')
-    parser.add_option('-d', '--debug', help="Debug output, interesting, try it out!", default=False, action='store_true')
+    parser.add_option('-d', '--debug', help="Debug output (RECOMMENDED)", default=False, action='store_true')
     parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     #parser.add_option('-c', '--colored', help="Colored ouput", default=False, action='store_true')
     pr, ar = parser.parse_args()
 
-    
-    
+
+
     if pr.username == None:
         parser.print_help()
         error("Please specify a username, I won't use mine :-)\n")
@@ -126,10 +127,10 @@ def delete_pqs(browser, chkid):
     browser.select_form(name="aspnetForm")
     browser.form.set_all_readonly(False)
     browser.form['ctl00$ContentBody$PQDownloadList$hidIds'] = ",".join(chkid) + ","
-    browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl04$lnkDeleteSelected"
+    browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl03$lnkDeleteSelected"
     browser.submit()
     pass
-    
+
 def slugify(value):
     """
     Normalizes string, converts to lowercase, removes non-alpha characters,
@@ -139,15 +140,15 @@ def slugify(value):
     value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
     value = unicode(re.sub('[^\w\s-]', '', value).strip())
     return re.sub('[-\s]+', '-', value)
-    
-def getLinkDB(browser):
+
+def getLinkDB(browser,special, debug):
     """Gets the link DB. Requires login first!"""
     response = browser.open("http://www.geocaching.com/pocket/default.aspx").read()
     if response.find("http://www.geocaching.com/my/") == -1:
         error("Invalid PQ site. Not logged in?")
     soup = BeautifulSoup(response)
     links = soup(id=re.compile("trPQDownloadRow"))
-    
+
     linklist = []
     for link in links:
         try:
@@ -164,44 +165,55 @@ def getLinkDB(browser):
                 'chkdelete': link.contents[1].contents[0]['value'],
             })
         except IndexError as e:
-            linklist.append({
-                'type': 'nodelete',
-                'index': link.contents[3].contents[0].strip('.'),
-                'url': link.contents[5].contents[2]['href'],
-                'name': link.contents[5].contents[2].contents[0],
-                'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
-                'size': link.contents[7].contents[0],
-                'count': link.contents[9].contents[0],
-                'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
-                'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
-            })
-            
-        
+            if special:
+                linklist.append({
+                    'type': 'nodelete',
+                    'index': link.contents[3].contents[0].strip('.'),
+                    'url': link.contents[5].contents[2]['href'],
+                    'name': link.contents[5].contents[2].contents[0],
+                    'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
+                    'size': link.contents[7].contents[0],
+                    'count': link.contents[9].contents[0],
+                    'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
+                    'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
+                })
+            else:
+                if debug:
+                    print "-> DEBUG: Pocket Query %s skipped because of -n\n" % slugify(link.contents[5].contents[2].contents[0])
+
+
     return linklist
-    
+
 def download_pq(link, filename, browser):
     def _reporthook(count, blockSize, totalSize):
         percent = int(count*blockSize*100/totalSize)
-        sys.stdout.write("\r  > %s%" % (str(percent)))
+        sys.stdout.write("\r  > %s%%" % (str(percent)))
         sys.stdout.flush()
 
     baseurl = 'http://www.geocaching.com/'
     isinstance(browser, mechanize.Browser)
     browser.retrieve(baseurl+link, filename, _reporthook)
     print '\r  > Done.\n'
-    
+
 def print_section(name):
     name = " %s " % name
     print name.center(50,'#') + '\n'
-    
+
 def main():
     print "\n-> PQdl v%s by leoluk. Updates on www.leoluk.de/paperless-caching/pqdl\n" % (version)
     opts, args = optparse_setup()
     browser = init_mechanize(opts.httpdebug)
-    print "-> LOGGING IN"
+    excludes = []
+    for arg in args:
+        if arg[0] == '#':
+            excludes.append(arg[1:])
+            args.remove(arg)
+            pass
+
+    print "-> LOGGING IN (as %s)" % opts.username
     login_gc(browser,opts.username, opts.password)
     print "-> GETTING LINKS\n" 
-    linklist = getLinkDB(browser)
+    linklist = getLinkDB(browser, not opts.nospecial, opts.debug)
     os.chdir(opts.outputdir)
     if opts.debug:
         print_section("DEBUG - LINK DATABASE")
@@ -209,21 +221,31 @@ def main():
             for field, data in link.iteritems():
                 print '%s: %s' % (field, data)
             print '\n'      
-        
+
     print_section("SELECTING FILES")
-    if args == []:
-        print "No arguments given, downloading all PQs.\n"
-    dllist = []
-    for link in linklist:
-        assert isinstance(args, list)
-        if (args.count(link['friendlyname'])) | (args == []):
-            print '-> "%s" will be downloaded' % link['name']
-            dllist.append(link)
-        else:
-            if opts.debug:
-                print "-> DEBUG: \"%s\" skipped because %s is not in the arguments list." % (link['name'],link['friendlyname'])
-    print '\n'
-    
+    if linklist == []:
+        print "No valid Pocket Queries found."
+        dllist = []
+    else:
+        if args == []:
+            print "No arguments given, downloading all PQs.\n"
+        dllist = []
+        for link in linklist:
+            assert isinstance(args, list)
+            if (excludes.count(link['friendlyname'])>0):
+                if opts.debug:
+                    print "-> DEBUG: \"%s\" skipped because %s is exluded." % (link['name'],link['friendlyname'])
+                continue
+            if (args.count(link['friendlyname'])>0) | (args == []):
+                print '-> "%s" will be downloaded' % link['name']
+                dllist.append(link)
+            else:
+                if opts.debug:
+                    print "-> DEBUG: \"%s\" skipped because %s is not in the arguments list." % (link['name'],link['friendlyname'])
+        if dllist == []:
+            print "All PQs skipped. Use -d to see why." if not opts.debug else "\nAll PQs skipped."
+        print '\n'
+
     print_section("DOWNLOADING SELECTED FILES")
     if opts.list:
         print "Downloads skipped!\n"
@@ -237,7 +259,7 @@ def main():
         filename = '%s.pqtmp' % (link['friendlyname'])
         link['filename'] = filename
         download_pq(link['url'],filename, browser)  
-    
+
     print_section("PROCESSING DOWNLOADED FILES")
     if dllist == []:
         print "No downloads to process.\n"
@@ -247,9 +269,24 @@ def main():
         if os.path.isfile(link['realfilename']):
             os.remove(link['realfilename'])
         os.rename(link['filename'],link['realfilename'])
-    
-    #delete_pqs(browser, ['4720967'])
+    print '\n'
+
+    if opts.remove:
+        print_section("REMOVE DOWNLOADED FILES FROM GC.COM")
+        rmlist = []
+        if dllist == []:
+            print "No files to remove.\n"
+        for link in dllist:
+            if link['type'] == 'nodelete':
+                print "MyFinds Pocket Query can't be removed. If you want to exclude it in future runs, use -n\n"
+                continue
+            rmlist.append(link['chkdelete'])
+            print "Pocket Query \"%s\" will be removed (ID: %s)." % (link['name'], link['chkdelete'])
+        if rmlist != []:
+            print "\n-> REMOVING POCKET QUERIES..."
+            delete_pqs(browser, rmlist)
+
 
 if __name__ == "__main__":
     main()
-    
+

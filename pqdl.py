@@ -70,10 +70,9 @@ Please don't abuse it."""
     parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
     parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
-    parser.add_option('--ctl', help="Remove-CTL value (DEBUG)", type='int', default=3)
+    parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
     #parser.add_option('-c', '--colored', help="Colored ouput", default=False, action='store_true')
     pr, ar = parser.parse_args()
-
 
 
     if pr.username == None:
@@ -129,12 +128,22 @@ def delete_pqs(browser, chkid, debug, ctl):
     browser.select_form(name="aspnetForm")
     browser.form.set_all_readonly(False)
     browser.form['ctl00$ContentBody$PQDownloadList$hidIds'] = ",".join(chkid) + ","
-    browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl0%d$lnkDeleteSelected" % int(ctl)
+    browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl%s$lnkDeleteSelected" % ctl
     browser.submit()
     if debug:
         print_section("\n\nHTTP REMOVE DEBUG\n")
         print browser.response().read()
     pass
+
+def find_ctl(browser):
+    assert isinstance(browser, mechanize.Browser)
+    browser.open("http://www.geocaching.com/pocket/default.aspx")
+    response = browser.response().read()
+    isinstance(response, str)
+    tmpl = "javascript:__doPostBack('ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl"
+    ind = response.index(tmpl)+len(tmpl)
+    return response[ind:ind+2]
+    
 
 def slugify(value):
     """
@@ -289,7 +298,15 @@ def main():
             print "Pocket Query \"%s\" will be removed (ID: %s)." % (link['name'], link['chkdelete'])
         if rmlist != []:
             print "\n-> REMOVING POCKET QUERIES..."
-            delete_pqs(browser, rmlist, opts.httpremovedebug, opts.ctl)
+            if opts.ctl != 'search':
+                ctl = opts.ctl
+            else:
+                print "\n-> Searching CTL value..."
+                ctl = find_ctl(browser)
+                if opts.debug:
+                    print "-> DEBUG: found value %s" % ctl
+                
+            delete_pqs(browser, rmlist, opts.httpremovedebug, ctl)
 
 
 if __name__ == "__main__":

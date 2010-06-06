@@ -70,6 +70,7 @@ Please don't abuse it."""
     parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
     parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
+    parser.add_option('--ctl', help="Remove-CTL value (DEBUG)", type='int', default=3)
     #parser.add_option('-c', '--colored', help="Colored ouput", default=False, action='store_true')
     pr, ar = parser.parse_args()
 
@@ -122,13 +123,13 @@ def login_gc(browser, username, password):
     if response.find('http://www.geocaching.com/my/') == -1:
         raise error("Could not log in. Please check your password.\nIf your username or password contains spaces, put it into parentheses!")
 
-def delete_pqs(browser, chkid, debug):
+def delete_pqs(browser, chkid, debug, ctl):
     assert isinstance(browser, mechanize.Browser)
     browser.open("http://www.geocaching.com/pocket/default.aspx")
     browser.select_form(name="aspnetForm")
     browser.form.set_all_readonly(False)
     browser.form['ctl00$ContentBody$PQDownloadList$hidIds'] = ",".join(chkid) + ","
-    browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl03$lnkDeleteSelected"
+    browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl0%d$lnkDeleteSelected" % int(ctl)
     browser.submit()
     if debug:
         print_section("\n\nHTTP REMOVE DEBUG\n")
@@ -288,7 +289,7 @@ def main():
             print "Pocket Query \"%s\" will be removed (ID: %s)." % (link['name'], link['chkdelete'])
         if rmlist != []:
             print "\n-> REMOVING POCKET QUERIES..."
-            delete_pqs(browser, rmlist, opts.httpremovedebug)
+            delete_pqs(browser, rmlist, opts.httpremovedebug, opts.ctl)
 
 
 if __name__ == "__main__":

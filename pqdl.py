@@ -305,7 +305,7 @@ def main():
                 ctl = find_ctl(browser)
                 if opts.debug:
                     print "-> DEBUG: found value %s" % ctl
-                
+            print "\n-> Sending removal request..."
             delete_pqs(browser, rmlist, opts.httpremovedebug, ctl)
 
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
 #       This program is free software; you can redistribute it and/or modify
 #       it under the terms of the GNU General Public License as published by
 #       the Free Software Foundation; either version 2 of the License, or
@@ -20,17 +22,20 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl
 """
 
-version = "0.2.1-stable"
+version = "0.2.2-trunk"
 
 import mechanize
 import optparse
 import cookielib
 import os
-from BeautifulSoup import BeautifulSoup
+import BeautifulSoup
 import re
 import sys
 import zipfile
 import atexit
+from time import sleep
+import random
+import ConfigParser
 #from termcolor import colored as color
 #from colorama import init, Fore, Style
 
@@ -60,17 +65,22 @@ Please don't abuse it."""
     parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog)
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces)")
-    parser.add_option('-o', '--outputdir', help="Output directory for downloaded files [default: %default]", default=os.getcwd())
-    parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE!", default=False, action='store_true')
+    parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet) [default: %default]", default=os.getcwd())
+    parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE! WARNING: This is broken from time to time, thanks go to Groundspeak!", default=False, action='store_true')
     parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed.", default=False, action='store_true')
     parser.add_option('-s', '--singlefile', help="Overwrite existing files. When using this option, there won't be any timestamps added! (so just one file for every PQ in your DL folder)", action="store_true", default=False)
     #parser.add_option('-z', '--unzip', help="Unzip the downloaded ZIP files and delete the originals.", action="store_true", default=False)
     #parser.add_option('-k', '--keepzip', help="Do not delete the original ZIP files (to be used with -z)", default=False, action='store_true')
     parser.add_option('-d', '--debug', help="Debug output (RECOMMENDED)", default=False, action='store_true')
     parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
+    parser.add_option('-e', '--delay', help="Delays between the requests", default=False, action='store_true')
     parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
+    #parser.add_option('--httpmaindebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
+    parser.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal if you want t", default=False, action='store_true')
+    parser.add_option('--usejournal', help="Like -j, but in read-only mode, it won't add new PQs to the journal (-j or this one!)", default=False, action='store_true')
+    parser.add_option('--journalfile', help="Filename of journal file [default: %default]", default="filestate.txt")
     #parser.add_option('-c', '--colored', help="Colored ouput", default=False, action='store_true')
     pr, ar = parser.parse_args()
 
@@ -82,6 +92,10 @@ Please don't abuse it."""
     if pr.password == None:
         parser.print_help()
         error("Nice try, but sorry, I won't guess your password.\n")
+        
+    #if pr.journal and pr.usejournal:
+    #    parser.print_help()
+    #    error("You should decide if you want to write to the journal file or not. Please use --usejournal *or* -j !")
 
     return pr, ar
 
@@ -106,6 +120,12 @@ def init_mechanize(debug):
     # User-Agent (this is cheating, ok?)
     br.addheaders = [('User-agent', 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1')]  
     return br
+
+def delay():
+    global odelay
+    if odelay:
+        sleep(random.randint(500,5000)/1000)
+        
 
 def login_gc(browser, username, password):
     """Login to GC.com site."""
@@ -160,8 +180,10 @@ def getLinkDB(browser,special, debug):
     response = browser.open("http://www.geocaching.com/pocket/default.aspx").read()
     if response.find("http://www.geocaching.com/my/") == -1:
         error("Invalid PQ site. Not logged in?")
-    soup = BeautifulSoup(response)
+    soup = BeautifulSoup.BeautifulSoup(response)
     links = soup(id=re.compile("trPQDownloadRow"))
+    
+    
 
     linklist = []
     for link in links:
@@ -190,6 +212,7 @@ def getLinkDB(browser,special, debug):
                     'count': link.contents[9].contents[0],
                     'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
                     'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
+                    'chkdelete': '_myfinds',
                 })
             else:
                 if debug:
@@ -214,6 +237,7 @@ def print_section(name):
     print name.center(50,'#') + '\n'
 
 def main():
+    ### Parsing options
     print "\n-> PQdl v%s by leoluk. Updates on www.leoluk.de/paperless-caching/pqdl\n" % (version)
     opts, args = optparse_setup()
     browser = init_mechanize(opts.httpdebug)
@@ -223,11 +247,27 @@ def main():
             excludes.append(arg[1:])
             args.remove(arg)
             pass
+     
+    global odelay
+        
+    odelay = opts.delay
+    
+    if not os.path.exists(opts.outputdir):
+        os.makedirs(opts.outputdir)
+        
+    if opts.debug:
+        print "-> DEBUG: mechanize %d.%d.%d; BeautifulSoup: %s; Filename: %s; \n-> DEBUG: Python: %s \n" % (mechanize.__version__[0], mechanize.__version__[1], mechanize.__version__[2], BeautifulSoup.__version__, os.path.basename(sys.argv[0]), sys.version)
 
+    if mechanize.__version__[1] < 2:
+        error("Please use the most recent version of mechanize. The version you are running is too old.")
+        
+    ### Main program
     print "-> LOGGING IN (as %s)" % opts.username
     login_gc(browser,opts.username, opts.password)
+    delay()
     print "-> GETTING LINKS\n" 
     linklist = getLinkDB(browser, not opts.nospecial, opts.debug)
+    delay()
     os.chdir(opts.outputdir)
     if opts.debug:
         print_section("DEBUG - LINK DATABASE")
@@ -236,6 +276,25 @@ def main():
                 print '%s: %s' % (field, data)
             print '\n'      
 
+    if opts.journal or opts.usejournal:
+        journal = True
+        lastruns = None
+        try:
+            cfile = open(opts.journalfile, 'rb')
+            cparser = ConfigParser.RawConfigParser()
+            cparser.readfp(cfile)
+            if opts.debug:
+                print "-> DEBUG: journal access done"
+        except IOError, m:
+            if opts.debug:
+                print "-> DEBUG: journal access failed: error: %s" % m
+        finally:
+            cfile.close()
+        print '\n'
+    else:
+        journal = False
+        
+        
     print_section("SELECTING FILES")
     if linklist == []:
         print "No valid Pocket Queries found. (try -d)"
@@ -244,8 +303,17 @@ def main():
         if args == []:
             print "No arguments given, downloading all PQs.\n"
         dllist = []
+        mdllist = []
         for link in linklist:
             assert isinstance(args, list)
+            if journal:
+                try:
+                    if cparser.get('Log',link['chkdelete']) == link['date']:
+                        if opts.debug:
+                            print "-> DEBUG: \"%s\" skipped because %s with date %s has already been downloaded." % (link['name'],link['friendlyname'], link['date'])
+                        continue
+                except ConfigParser.NoSectionError:
+                    pass              
             if (excludes.count(link['friendlyname'])>0):
                 if opts.debug:
                     print "-> DEBUG: \"%s\" skipped because %s is exluded." % (link['name'],link['friendlyname'])
@@ -272,8 +340,14 @@ def main():
             print '>>> Downloading %d/%d: "%s" (%s) [%s]' % (n+1, len(dllist), link['name'], link['size'], link['date'])
         filename = '%s.pqtmp' % (link['friendlyname'])
         link['filename'] = filename
-        download_pq(link['url'],filename, browser)  
+        delay()
+        download_pq(link['url'],filename, browser)
+        if journal:
+            cparser.add_section('Log')
+            cparser.set('Log',link['chkdelete'],link ['date'])
+            cparser.set('Log',link['chkdelete'],link ['date'])
 
+    delay()
     print_section("PROCESSING DOWNLOADED FILES")
     if dllist == []:
         print "No downloads to process. (try -d)\n"
@@ -308,7 +382,15 @@ def main():
             print "\n-> Sending removal request..."
             delete_pqs(browser, rmlist, opts.httpremovedebug, ctl)
             print "\n-> Removal request sent. If it didn't work, please report this a bug.\nGroundspeak makes so many changes on their site that this feature is broken from time to time."
-
+        
+        # REPICKLE
+        
+    if opts.journal:
+        try:
+            cfile = open(opts.journalfile, 'wb' if opts.journal else 'rb')
+            cparser.write(cfile)
+        finally:
+            cfile.close()
 
 if __name__ == "__main__":
     main()

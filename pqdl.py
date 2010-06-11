@@ -19,7 +19,7 @@
 """PQdl is a tool that can download Pocket Queries from geocaching.com. 
 Pocket Queries that contain more than 500 caches won't be sent per mail, so you 
 need to do it by hand or with this script.
-This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl
+This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
 version = "0.2.2-stable"

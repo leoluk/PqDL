@@ -67,7 +67,7 @@ Please don't abuse it."""
     parser.add_option('-e', '--delay', help="Delays between the requests", default=False, action='store_true')
     parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('--ignoreerrors', help="Ignore version errors like mechanize <0.2", default=False, action='store_true')
-    parser.add_option('--httpmaindebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
+    parser.add_option('--httpmaindebug', help="HTTP 'getPQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
     parser.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')

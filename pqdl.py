@@ -22,7 +22,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
-version = "0.2.2-stable"
+version = "0.2.2-trunk"
 
 import mechanize
 import optparse
@@ -53,7 +53,7 @@ Please don't abuse it."""
 
     usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [options] [pq_1 pq_2 ...]"
 
-    parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog)
+    parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog, usage=usage)
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet) [default: %default]", default=os.getcwd())

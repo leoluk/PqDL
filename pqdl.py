@@ -31,19 +31,10 @@ import os
 import BeautifulSoup
 import re
 import sys
-import zipfile
-import atexit
 from time import sleep
 import random
 import ConfigParser
-#from termcolor import colored as color
-#from colorama import init, Fore, Style
 
-def reset_colorama():
-    print Style.DIM
-
-#atexit.register(reset_colorama)
-#init()
 
 def error(msg):
     sys.stderr.write("\n%s: error: %s\n" % (os.path.basename(sys.argv[0]), msg)) 
@@ -78,10 +69,10 @@ Please don't abuse it."""
     #parser.add_option('--httpmaindebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
-    parser.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal if you want t", default=False, action='store_true')
+    parser.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
     parser.add_option('--usejournal', help="Like -j, but in read-only mode, it won't add new PQs to the journal (-j or this one!)", default=False, action='store_true')
+    parser.add_option('--resetjournal', help="Reset/Remove the journal file", default=False, action='store_true')
     parser.add_option('--journalfile', help="Filename of journal file [default: %default]", default="filestate.txt")
-    #parser.add_option('-c', '--colored', help="Colored ouput", default=False, action='store_true')
     pr, ar = parser.parse_args()
 
 
@@ -93,9 +84,9 @@ Please don't abuse it."""
         parser.print_help()
         error("Nice try, but sorry, I won't guess your password.\n")
         
-    #if pr.journal and pr.usejournal:
-    #    parser.print_help()
-    #    error("You should decide if you want to write to the journal file or not. Please use --usejournal *or* -j !")
+    if pr.journal and pr.usejournal:
+        parser.print_help()
+        error("You should decide if you want to write to the journal file or not. Please use --usejournal *or* -j !")
 
     return pr, ar
 
@@ -122,7 +113,6 @@ def init_mechanize(debug):
     return br
 
 def delay():
-    global odelay
     if odelay:
         sleep(random.randint(500,5000)/1000)
         
@@ -153,7 +143,6 @@ def delete_pqs(browser, chkid, debug, ctl):
     if debug:
         print_section("\n\nHTTP REMOVE DEBUG\n")
         print browser.response().read()
-    pass
 
 def find_ctl(browser):
     assert isinstance(browser, mechanize.Browser)
@@ -200,7 +189,7 @@ def getLinkDB(browser,special, debug):
                 'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
                 'chkdelete': link.contents[1].contents[0]['value'],
             })
-        except IndexError as e:
+        except IndexError:
             if special:
                 linklist.append({
                     'type': 'nodelete',
@@ -246,7 +235,6 @@ def main():
         if arg[0] == '#':
             excludes.append(arg[1:])
             args.remove(arg)
-            pass
      
     global odelay
         
@@ -276,12 +264,15 @@ def main():
                 print '%s: %s' % (field, data)
             print '\n'      
 
+    if opts.resetjournal:
+        print "-> Resetting journal...\n"
+        os.remove(opts.journalfile)
+    
     if opts.journal or opts.usejournal:
         journal = True
-        lastruns = None
+        cparser = ConfigParser.RawConfigParser()
         try:
             cfile = open(opts.journalfile, 'rb')
-            cparser = ConfigParser.RawConfigParser()
             cparser.readfp(cfile)
             if opts.debug:
                 print "-> DEBUG: journal access done"
@@ -289,7 +280,10 @@ def main():
             if opts.debug:
                 print "-> DEBUG: journal access failed: error: %s" % m
         finally:
-            cfile.close()
+            try:
+                cfile.close()
+            except UnboundLocalError:
+                pass
         print '\n'
     else:
         journal = False
@@ -303,7 +297,6 @@ def main():
         if args == []:
             print "No arguments given, downloading all PQs.\n"
         dllist = []
-        mdllist = []
         for link in linklist:
             assert isinstance(args, list)
             if journal:
@@ -332,7 +325,6 @@ def main():
     if opts.list:
         print "Downloads skipped!\n"
         dllist = []
-    filelist = []
     for n, link in enumerate(dllist):
         if link['name'] != link['friendlyname']:
             print '>>> Downloading %d/%d: "%s" (Friendly Name: %s) (%s) [%s]' % (n+1, len(dllist), link['name'], link['friendlyname'], link['size'], link['date'])
@@ -343,7 +335,10 @@ def main():
         delay()
         download_pq(link['url'],filename, browser)
         if journal:
-            cparser.add_section('Log')
+            try:
+                cparser.add_section('Log')
+            except ConfigParser.DuplicateSectionError:
+                pass
             cparser.set('Log',link['chkdelete'],link ['date'])
             cparser.set('Log',link['chkdelete'],link ['date'])
 
@@ -357,9 +352,9 @@ def main():
         if os.path.isfile(link['realfilename']):
             os.remove(link['realfilename'])
         os.rename(link['filename'],link['realfilename'])
-    print '\n'
 
     if opts.remove:
+        print '\n'
         print_section("REMOVE DOWNLOADED FILES FROM GC.COM")
         rmlist = []
         if dllist == []:
@@ -387,6 +382,8 @@ def main():
         
     if opts.journal:
         try:
+            if opts.debug:
+                print "-> DEBUG: writing journal file %s\n" % opts.journalfile
             cfile = open(opts.journalfile, 'wb' if opts.journal else 'rb')
             cparser.write(cfile)
         finally:

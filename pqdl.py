@@ -16,7 +16,7 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
-"""PQdl is a little tool that can download Pocket Queries from geocaching.com. 
+"""PQdl is a tool that can download Pocket Queries from geocaching.com. 
 Pocket Queries that contain more than 500 caches won't be sent per mail, so you 
 need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl
@@ -66,6 +66,7 @@ Please don't abuse it."""
     parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
     parser.add_option('-e', '--delay', help="Delays between the requests", default=False, action='store_true')
     parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
+    parser.add_option('--ignoreerrors', help="Ignore version errors like mechanize <0.2", default=False, action='store_true')
     #parser.add_option('--httpmaindebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
@@ -247,7 +248,10 @@ def main():
         print "-> DEBUG: mechanize %d.%d.%d; BeautifulSoup: %s; Filename: %s; \n-> DEBUG: Python: %s \n" % (mechanize.__version__[0], mechanize.__version__[1], mechanize.__version__[2], BeautifulSoup.__version__, os.path.basename(sys.argv[0]), sys.version)
 
     if mechanize.__version__[1] < 2:
-        error("Please use the most recent version of mechanize. The version you are running is too old.")
+        if opts.ignoreerrors:
+            print "-> IMPORTANT: Please use the most recent version of mechanize. The version you are running is too old. Use it on your own risk. If it doesn't works, just upgrade it."
+        else:
+            error("Please use the most recent version of mechanize. The version you are running is too old.")
         
     ### Main program
     print "-> LOGGING IN (as %s)" % opts.username

@@ -376,7 +376,7 @@ def main():
                     print "-> DEBUG: found value %s" % ctl
             print "\n-> Sending removal request..."
             delete_pqs(browser, rmlist, opts.httpremovedebug, ctl)
-            print "\n-> Removal request sent. If it didn't work, please report this a bug.\nGroundspeak makes so many changes on their site that this feature is broken from time to time."
+            print "\n-> Removal request sent. If it didn't work, please report this a bug.\n  Groundspeak makes so many changes on their site that this feature is broken from time to time."
         
         # REPICKLE
         

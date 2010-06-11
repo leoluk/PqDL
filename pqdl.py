@@ -67,7 +67,7 @@ Please don't abuse it."""
     parser.add_option('-e', '--delay', help="Delays between the requests", default=False, action='store_true')
     parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('--ignoreerrors', help="Ignore version errors like mechanize <0.2", default=False, action='store_true')
-    #parser.add_option('--httpmaindebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
+    parser.add_option('--httpmaindebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
     parser.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
@@ -142,8 +142,8 @@ def delete_pqs(browser, chkid, debug, ctl):
     browser.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl%s$lnkDeleteSelected" % ctl
     browser.submit()
     if debug:
-        print_section("\n\nHTTP REMOVE DEBUG\n")
-        print browser.response().read()
+        print_section("HTTP REMOVE DEBUG")
+        print "\n\n%s\n\n" % browser.response().read()
 
 def find_ctl(browser):
     assert isinstance(browser, mechanize.Browser)
@@ -165,7 +165,7 @@ def slugify(value):
     value = unicode(re.sub('[^\w\s-]', '', value).strip())
     return re.sub('[-\s]+', '-', value)
 
-def getLinkDB(browser,special, debug):
+def getLinkDB(browser,special, debug, httpdebug):
     """Gets the link DB. Requires login first!"""
     response = browser.open("http://www.geocaching.com/pocket/default.aspx").read()
     if response.find("http://www.geocaching.com/my/") == -1:
@@ -173,7 +173,9 @@ def getLinkDB(browser,special, debug):
     soup = BeautifulSoup.BeautifulSoup(response)
     links = soup(id=re.compile("trPQDownloadRow"))
     
-    
+    if httpdebug:
+        print_section("PQ SITE DEBUG OUTPUT")
+        print "\n\n%s\n\n" % response
 
     linklist = []
     for link in links:
@@ -217,7 +219,7 @@ def download_pq(link, filename, browser):
         sys.stdout.write("\r  > %s%%" % (str(percent)))
         sys.stdout.flush()
 
-    baseurl = 'http://www.geocaching.com/'
+    baseurl = 'http://www.geocaching.com'
     isinstance(browser, mechanize.Browser)
     browser.retrieve(baseurl+link, filename, _reporthook)
     print '\r  > Done.\n'
@@ -247,18 +249,18 @@ def main():
     if opts.debug:
         print "-> DEBUG: mechanize %d.%d.%d; BeautifulSoup: %s; Filename: %s; \n-> DEBUG: Python: %s \n" % (mechanize.__version__[0], mechanize.__version__[1], mechanize.__version__[2], BeautifulSoup.__version__, os.path.basename(sys.argv[0]), sys.version)
 
-    if mechanize.__version__[1] < 2:
-        if opts.ignoreerrors:
-            print "-> IMPORTANT: Please use the most recent version of mechanize. The version you are running is too old. Use it on your own risk. If it doesn't works, just upgrade it."
-        else:
-            error("Please use the most recent version of mechanize. The version you are running is too old.")
+    #if mechanize.__version__[1] < 2:
+        #if opts.ignoreerrors:
+            #print "-> IMPORTANT: Please use the most recent version of mechanize. The version you are running is too old. Use it on your own risk. If it doesn't works, just upgrade it."
+        #else:
+            #error("Please use the most recent version of mechanize. The version you are running is too old.")
         
     ### Main program
     print "-> LOGGING IN (as %s)" % opts.username
     login_gc(browser,opts.username, opts.password)
     delay()
     print "-> GETTING LINKS\n" 
-    linklist = getLinkDB(browser, not opts.nospecial, opts.debug)
+    linklist = getLinkDB(browser, not opts.nospecial, opts.debug, opts.httpmaindebug)
     delay()
     os.chdir(opts.outputdir)
     if opts.debug:

@@ -22,7 +22,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl
 """
 
-version = "0.2.2-trunk"
+version = "0.2.2-stable"
 
 import mechanize
 import optparse
@@ -51,7 +51,7 @@ When not using -s, it will add timestamps to the filename of every downloaded fi
 This tool probably violates the Terms of Service by Groundspeak. 
 Please don't abuse it."""
 
-    #usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [-r] [-w] [-z [-k]] [pq_1 pq_2 ...]"
+    usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [options] [pq_1 pq_2 ...]"
 
     parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog)
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
@@ -174,7 +174,7 @@ def getLinkDB(browser,special, debug, httpdebug):
     links = soup(id=re.compile("trPQDownloadRow"))
     
     if httpdebug:
-        print_section("PQ SITE DEBUG OUTPUT")
+        print_section("DEBUG: PQ SITE")
         print "\n\n%s\n\n" % response
 
     linklist = []
@@ -389,7 +389,7 @@ def main():
     if opts.journal:
         try:
             if opts.debug:
-                print "-> DEBUG: writing journal file %s\n" % opts.journalfile
+                print "\n-> DEBUG: writing journal file %s" % opts.journalfile
             cfile = open(opts.journalfile, 'wb' if opts.journal else 'rb')
             cparser.write(cfile)
         finally:

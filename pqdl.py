@@ -31,10 +31,11 @@ import os
 import BeautifulSoup
 import re
 import sys
-from time import sleep
 import random
 import ConfigParser
+import zipfile
 
+from time import sleep
 
 def error(msg):
     sys.stderr.write("\n%s: error: %s\n" % (os.path.basename(sys.argv[0]), msg)) 
@@ -59,9 +60,9 @@ Please don't abuse it."""
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet) [default: %default]", default=os.getcwd())
     parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE! WARNING: This is broken from time to time, thanks go to Groundspeak!", default=False, action='store_true')
     parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed.", default=False, action='store_true')
+    parser.add_option('-z', '--unzip', help="Unzips and removes the downloaded ZIP files.", default=False, action='store_true')
+    parser.add_option('--keepzip', help="Do not remove unzipped files. (to be used with -z)", default=False, action='store_true')
     parser.add_option('-s', '--singlefile', help="Overwrite existing files. When using this option, there won't be any timestamps added! (so just one file for every PQ in your DL folder)", action="store_true", default=False)
-    #parser.add_option('-z', '--unzip', help="Unzip the downloaded ZIP files and delete the originals.", action="store_true", default=False)
-    #parser.add_option('-k', '--keepzip', help="Do not delete the original ZIP files (to be used with -z)", default=False, action='store_true')
     parser.add_option('-d', '--debug', help="Debug output (RECOMMENDED)", default=False, action='store_true')
     parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
     parser.add_option('-e', '--delay', help="Delays between the requests", default=False, action='store_true')
@@ -89,6 +90,10 @@ Please don't abuse it."""
         parser.print_help()
         error("You should decide if you want to write to the journal file or not. Please use --usejournal *or* -j !")
 
+    if pr.keepzip and not pr.unzip:
+        parser.print_help()
+        error("You can't use --keepzip without -z (--unzip).")
+        
     return pr, ar
 
 def init_mechanize(debug):
@@ -204,7 +209,7 @@ def getLinkDB(browser,special, debug, httpdebug):
                     'count': link.contents[9].contents[0],
                     'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
                     'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
-                    'chkdelete': '_myfinds',
+                    'chkdelete': 'myfinds',
                 })
             else:
                 if debug:
@@ -311,8 +316,8 @@ def main():
                         if opts.debug:
                             print "-> DEBUG: \"%s\" skipped because %s with date %s has already been downloaded." % (link['name'],link['friendlyname'], link['date'])
                         continue
-                except ConfigParser.NoOptionError, ConfigParser.NoSectionError:
-                    pass              
+                except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+                    pass     
             if (excludes.count(link['friendlyname'])>0):
                 if opts.debug:
                     print "-> DEBUG: \"%s\" skipped because %s is exluded." % (link['name'],link['friendlyname'])
@@ -359,6 +364,37 @@ def main():
             os.remove(link['realfilename'])
         os.rename(link['filename'],link['realfilename'])
 
+    if opts.unzip:
+        print '\n'
+        print_section("UNZIPPING THE DOWNLOADED FILES")
+        for link in dllist:
+            print "-> Unzipping %s" % link['realfilename']
+            zfile = zipfile.ZipFile(link['realfilename'])
+            for info in zfile.infolist():
+                isinstance(info, zipfile.ZipInfo)
+                if opts.debug:
+                    print "%s (size: %s)" % (info.filename, info.file_size)
+                zfile.extract(info)
+                if link['chkdelete'] == 'myfinds':
+                    filename = "MyFinds_%s.gpx" % link['date']
+                else:
+                    filename = "%s_%s_%s.gpx" % (link['friendlyname'],link['chkdelete'],link['date'])
+                if info.filename.find('wpts') > 0:
+                    filename = "%s_%s_%s_waypoints.gpx" % (link['friendlyname'],link['chkdelete'],link['date'])
+                if os.path.isfile(filename):
+                    os.remove(filename)
+            
+                os.rename(info.filename, filename)
+            
+            zfile.close()
+            
+            if not opts.keepzip:
+                if opts.debug:
+                    print "-> DEBUG: Removing %s..." % link['realfilename']
+                os.remove(link['realfilename'])
+            if opts.debug:
+                print ''
+    
     if opts.remove:
         print '\n'
         print_section("REMOVE DOWNLOADED FILES FROM GC.COM")

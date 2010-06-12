@@ -311,7 +311,7 @@ def main():
                         if opts.debug:
                             print "-> DEBUG: \"%s\" skipped because %s with date %s has already been downloaded." % (link['name'],link['friendlyname'], link['date'])
                         continue
-                except ConfigParser.NoSectionError:
+                except ConfigParser.NoOptionError, ConfigParser.NoSectionError:
                     pass              
             if (excludes.count(link['friendlyname'])>0):
                 if opts.debug:

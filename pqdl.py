@@ -369,6 +369,8 @@ def main():
         print_section("UNZIPPING THE DOWNLOADED FILES")
         for link in dllist:
             print "-> Unzipping %s" % link['realfilename']
+            if opts.debug:
+                print "-> DEBUG:"
             zfile = zipfile.ZipFile(link['realfilename'])
             for info in zfile.infolist():
                 isinstance(info, zipfile.ZipInfo)
@@ -383,14 +385,15 @@ def main():
                     filename = "%s_%s_%s_waypoints.gpx" % (link['friendlyname'],link['chkdelete'],link['date'])
                 if os.path.isfile(filename):
                     os.remove(filename)
-            
+                if opts.debug:
+                    print "%s -> %s" % (info.filename, filename)
                 os.rename(info.filename, filename)
             
             zfile.close()
             
             if not opts.keepzip:
                 if opts.debug:
-                    print "-> DEBUG: Removing %s..." % link['realfilename']
+                    print "Removing %s..." % link['realfilename']
                 os.remove(link['realfilename'])
             if opts.debug:
                 print ''

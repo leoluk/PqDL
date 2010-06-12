@@ -22,7 +22,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
-version = "0.2.3-stable"
+version = "0.2.4-stable"
 
 import mechanize
 import optparse
@@ -34,6 +34,7 @@ import sys
 import random
 import ConfigParser
 import zipfile
+import getpass
 
 from time import sleep
 
@@ -56,7 +57,7 @@ Please don't abuse it."""
 
     parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog, usage=usage)
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
-    parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces)")
+    parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces), you will be asked if you don't specify it")
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet) [default: %default]", default=os.getcwd())
     parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE! WARNING: This is broken from time to time, thanks go to Groundspeak!", default=False, action='store_true')
     parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed.", default=False, action='store_true')
@@ -83,8 +84,10 @@ Please don't abuse it."""
         error("Please specify a username, I won't use mine :-)\n")
 
     if pr.password == None:
-        parser.print_help()
-        error("Nice try, but sorry, I won't guess your password.\n")
+        #parser.print_help()
+        #error("Nice try, but sorry, I won't guess your password.\n")
+        pr.password = getpass.getpass("Password for %s: " % pr.username)
+        print ''
         
     if pr.journal and pr.usejournal:
         parser.print_help()
@@ -235,7 +238,7 @@ def print_section(name):
 
 def main():
     ### Parsing options
-    print "\n-> PQdl v%s by leoluk. Updates on www.leoluk.de/paperless-caching/pqdl\n" % (version)
+    print "\n-> PQdl v%s by leoluk. Updates on www.leoluk.de/paperless-caching/pqdl" % (version)
     opts, args = optparse_setup()
     browser = init_mechanize(opts.httpdebug)
     excludes = []
@@ -261,7 +264,7 @@ def main():
             #error("Please use the most recent version of mechanize. The version you are running is too old.")
         
     ### Main program
-    print "-> LOGGING IN (as %s)" % opts.username
+    print "-> LOGGING IN"
     login_gc(browser,opts.username, opts.password)
     delay()
     print "-> GETTING LINKS\n" 

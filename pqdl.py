@@ -80,7 +80,7 @@ Please don't abuse it. """
     
     parser.add_option('-m', '--mappings', help="Assign a GSAK Database for pqloader to every PQ, requires journal", default=False, action='store_true')
     parser.add_option('--mapfile', help="File that contains the mapping section, default is the journal file. [default: %default, or the custom journal file if set]. For usage examples look at the project site.", default="filestate.txt", action='store_true')
-    parser.add_option('--sep', help="Seperator for pqloader [default: %default]", default=" ", action='store_true')
+    parser.add_option('--sep', help="Seperator for pqloader [default: '%default']", default=" ", action='store_true')
     
     #parser.add_option('--log', help="Make a logfile that will contain all output.")
     #parser.add_option('--logfile', help="Filename of the logfile [default: %default]", default="pqdl.log")

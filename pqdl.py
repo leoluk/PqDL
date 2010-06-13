@@ -22,7 +22,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
-version = "0.2.4-stable"
+version = "0.3.0-trunk"
 
 import mechanize
 import optparse
@@ -35,6 +35,7 @@ import random
 import ConfigParser
 import zipfile
 import getpass
+import fnmatch
 
 from time import sleep
 
@@ -48,10 +49,9 @@ def optparse_setup():
     desc = __doc__
     epilog = """Pass the names of the Pocket Queries you want to download as
 parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to 
-download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name' of a PQ if it contains spaces or special chars. Please run with -d to get the friendly name. If usernames or passwords have spaces, set them in quotes. (IMPORTANT: the Pocket Queries needs to be zipped!)
-When not using -s, it will add timestamps to the filename of every downloaded file according to the "Last Generated" dates on the PQ site.
+download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name', the name, the date or the ID of a PQ. You can use UNIX-style wildcards (*, ?, [x], [!x]). If any argument (username, password, PQ names, ...) contains spaces, put it into parantheses. Please run with -d -l to get the friendly name or other parameters. (IMPORTANT: the Pocket Queries needs to be zipped by GC.com!)
 This tool probably violates the Terms of Service by Groundspeak. 
-Please don't abuse it."""
+Please don't abuse it. """
 
     usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [options] [pq_1 pq_2 ...]"
 
@@ -72,10 +72,20 @@ Please don't abuse it."""
     parser.add_option('--httpmaindebug', help="HTTP 'getPQ' debug output", default=False, action='store_true')
     parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
     parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
+    
     parser.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
-    parser.add_option('--usejournal', help="Like -j, but in read-only mode, it won't add new PQs to the journal (-j or this one!)", default=False, action='store_true')
-    parser.add_option('--resetjournal', help="Reset/Remove the journal file", default=False, action='store_true')
+    parser.add_option('--usejournal', help="Like -j, but in read-only mode, it won't add new PQs or pqloader mappings to the journal (-j or this one!)", default=False, action='store_true')
+    parser.add_option('--resetjournal', help="Reset the log section of the journal", default=False, action='store_true')
     parser.add_option('--journalfile', help="Filename of journal file [default: %default]", default="filestate.txt")
+    
+    parser.add_option('-m', '--mappings', help="Assign a GSAK Database for pqloader to every PQ, requires journal", default=False, action='store_true')
+    parser.add_option('--mapfile', help="File that contains the mapping section, default is the journal file. [default: %default, or the custom journal file if set]. For usage examples look at the project site.", default="filestate.txt", action='store_true')
+    parser.add_option('--sep', help="Seperator for pqloader [default: %default]", default=" ", action='store_true')
+    
+    parser.add_option('--log', help="Make a logfile that will contain all output.")
+    parser.add_option('--logfile', help="Filename of the logfile [default: %default]", default="pqdl.log")
+    
+    parser.add_option('--myfinds', help="Trigger a My Finds Pocket Query if possible.", default=False, action='store_true')
     pr, ar = parser.parse_args()
 
 
@@ -83,9 +93,10 @@ Please don't abuse it."""
         parser.print_help()
         error("Please specify a username, I won't use mine :-)\n")
 
+    if (pr.mappings) and (pr.journalfile != 'filestate.txt') and (pr.mapfile == 'filestate.txt'):
+        pr.mapfile = pr.journalfile
+    
     if pr.password == None:
-        #parser.print_help()
-        #error("Nice try, but sorry, I won't guess your password.\n")
         pr.password = getpass.getpass("Password for %s: " % pr.username)
         print ''
         
@@ -153,6 +164,21 @@ def delete_pqs(browser, chkid, debug, ctl):
         print_section("HTTP REMOVE DEBUG")
         print "\n\n%s\n\n" % browser.response().read()
 
+def trigger_myfinds(browser):
+    assert isinstance(browser, mechanize.Browser)
+    try:
+        print "-> Trigger My Finds PQ..."
+        browser.open("http://www.geocaching.com/pocket/default.aspx")
+        browser.select_form(name="aspnetForm")
+        browser.form.set_all_readonly(False)
+        browser.form['ctl00$ContentBody$PQListControl1$btnScheduleNow'] = "Add to Queue"
+        browser.submit()
+    except ValueError:
+        print "-> FAILURE: My Finds Pocket Query not available."
+    #if debug:
+        #print_section("HTTP MYFINDS DEBUG")
+        #print "\n\n%s\n\n" % browser.response().read()        
+
 def find_ctl(browser):
     assert isinstance(browser, mechanize.Browser)
     browser.open("http://www.geocaching.com/pocket/default.aspx")
@@ -176,6 +202,8 @@ def slugify(value):
 def getLinkDB(browser,special, debug, httpdebug):
     """Gets the link DB. Requires login first!"""
     response = browser.open("http://www.geocaching.com/pocket/default.aspx").read()
+    #f = open('debug.txt')
+    #response = f.read()
     if response.find("http://www.geocaching.com/my/") == -1:
         error("Invalid PQ site. Not logged in?")
     soup = BeautifulSoup.BeautifulSoup(response)
@@ -197,7 +225,7 @@ def getLinkDB(browser,special, debug, httpdebug):
                 'size': link.contents[7].contents[0],
                 'count': link.contents[9].contents[0],
                 'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
-                'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
+                #'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
                 'chkdelete': link.contents[1].contents[0]['value'],
             })
         except IndexError:
@@ -211,7 +239,7 @@ def getLinkDB(browser,special, debug, httpdebug):
                     'size': link.contents[7].contents[0],
                     'count': link.contents[9].contents[0],
                     'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
-                    'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
+                    #'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
                     'chkdelete': 'myfinds',
                 })
             else:
@@ -236,9 +264,31 @@ def print_section(name):
     name = " %s " % name
     print name.center(50,'#') + '\n'
 
+def get_mapstr(mparser, link, debug):
+    isinstance(mparser, ConfigParser.ConfigParser)
+    if mparser.has_section('Map'):
+        for key in ('chkdelete', 'friendlyname', 'name', 'date'):
+            if mparser.has_option('Map',link[key]):
+                if debug:
+                    print "-> DEBUG: Map entry \"%s\" (%s) found for %s" % (link[key], key, link['friendlyname'])
+                return mparser.get('Map',link[key])
+        return ""
+    else:
+        return ""
+ 
+def check_linkmatch(link, linklist, debug):
+    result = False
+    for key in ('chkdelete', 'friendlyname', 'name', 'date'):
+        for arg in linklist:
+            if fnmatch.fnmatch(link[key],arg):
+                if debug:
+                    print "-> DEBUG: Argument \"%s\" as %s is valid for %s" % (link[key], key, link['friendlyname'])
+                result = True
+    return result
+
 def main():
     ### Parsing options
-    print "\n-> PQdl v%s by leoluk. Updates on www.leoluk.de/paperless-caching/pqdl" % (version)
+    print "-> PQdl v%s by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl\n" % (version)
     opts, args = optparse_setup()
     browser = init_mechanize(opts.httpdebug)
     excludes = []
@@ -276,32 +326,32 @@ def main():
         for link in linklist:
             for field, data in link.iteritems():
                 print '%s: %s' % (field, data)
-            print '\n'      
-
-    if opts.resetjournal:
-        print "-> Resetting journal...\n"
-        os.remove(opts.journalfile)
+            print ''      
     
     if opts.journal or opts.usejournal:
         journal = True
         cparser = ConfigParser.RawConfigParser()
-        try:
-            cfile = open(opts.journalfile, 'rb')
-            cparser.readfp(cfile)
-            if opts.debug:
-                print "-> DEBUG: journal access done"
-        except IOError, m:
-            if opts.debug:
-                print "-> DEBUG: journal access failed: error: %s" % m
-        finally:
-            try:
-                cfile.close()
-            except UnboundLocalError:
-                pass
+        cfiles = cparser.read([opts.journalfile])
+        if opts.debug:
+            print "-> DEBUG: Journal: %s" % cfiles
+        if opts.resetjournal:
+            print "-> Resetting journal...\n"
+            if cparser.has_section('Log'):
+                cparser.remove_section('Log')
         print '\n'
     else:
         journal = False
+    
+    if opts.mappings:
+        mparser = ConfigParser.RawConfigParser()
+        mfiles = mparser.read([opts.mapfile])
+        if opts.debug:
+            print "-> DEBUG: Mappings: %s" %mfiles
+        print '\n'
         
+    if opts.myfinds:
+        trigger_myfinds(browser)
+        print ''
         
     print_section("SELECTING FILES")
     if linklist == []:
@@ -320,13 +370,13 @@ def main():
                             print "-> DEBUG: \"%s\" skipped because %s with date %s has already been downloaded." % (link['name'],link['friendlyname'], link['date'])
                         continue
                 except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
-                    pass     
-            if (excludes.count(link['friendlyname'])>0):
+                    pass
+            if (check_linkmatch(link, excludes, opts.debug)):
                 if opts.debug:
                     print "-> DEBUG: \"%s\" skipped because %s is exluded." % (link['name'],link['friendlyname'])
                 continue
-            if (args.count(link['friendlyname'])>0) | (args == []):
-                print '-> "%s" will be downloaded' % link['name']
+            if (check_linkmatch(link, args, opts.debug)) | (args == []):
+                print '-> "%s" (%s) will be downloaded' % (link['name'], link['date'])
                 dllist.append(link)
             else:
                 if opts.debug:
@@ -349,10 +399,8 @@ def main():
         delay()
         download_pq(link['url'],filename, browser)
         if journal:
-            try:
+            if not cparser.has_section('Log'):
                 cparser.add_section('Log')
-            except ConfigParser.DuplicateSectionError:
-                pass
             cparser.set('Log',link['chkdelete'],link ['date'])
             cparser.set('Log',link['chkdelete'],link ['date'])
 
@@ -361,7 +409,8 @@ def main():
     if dllist == []:
         print "No downloads to process. (try -d)\n"
     for link in dllist:
-        link['realfilename'] = ('%s_%s.zip' % (link['friendlyname'],link['date']) if not opts.singlefile else '%s.zip' % (link['friendlyname']))
+        mapstr = get_mapstr(mparser, link, opts.debug) + opts.sep if opts.mappings else ""
+        link['realfilename'] = ('%s%s_%s.zip' % (mapstr, link['friendlyname'],link['date']) if not opts.singlefile else '%s%s.zip' % (mapstr, link['friendlyname']))
         print "%s -> %s" % (link['filename'],link['realfilename'])
         if os.path.isfile(link['realfilename']):
             os.remove(link['realfilename'])
@@ -380,12 +429,13 @@ def main():
                 if opts.debug:
                     print "%s (size: %s)" % (info.filename, info.file_size)
                 zfile.extract(info)
+                mapstr = get_mapstr(mparser, link, opts.debug) + opts.sep if opts.mappings else ""
                 if link['chkdelete'] == 'myfinds':
-                    filename = "MyFinds_%s.gpx" % link['date']
+                    filename = "%sMyFinds_%s.gpx" % (mapstr, link['date'])
                 else:
-                    filename = "%s_%s_%s.gpx" % (link['friendlyname'],link['chkdelete'],link['date'])
+                    filename = "%s%s_%s_%s.gpx" % (mapstr, link['friendlyname'],link['chkdelete'],link['date'])
                 if info.filename.find('wpts') > 0:
-                    filename = "%s_%s_%s_waypoints.gpx" % (link['friendlyname'],link['chkdelete'],link['date'])
+                    filename = "%s%s_%s_%s_waypoints.gpx" % (mapstr, link['friendlyname'],link['chkdelete'],link['date'])
                 if os.path.isfile(filename):
                     os.remove(filename)
                 if opts.debug:
@@ -432,7 +482,7 @@ def main():
         try:
             if opts.debug:
                 print "\n-> DEBUG: writing journal file %s" % opts.journalfile
-            cfile = open(opts.journalfile, 'wb' if opts.journal else 'rb')
+            cfile = open(opts.journalfile, 'w')
             cparser.write(cfile)
         finally:
             cfile.close()

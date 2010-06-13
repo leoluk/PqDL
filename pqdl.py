@@ -282,7 +282,7 @@ def check_linkmatch(link, linklist, debug):
         for arg in linklist:
             if fnmatch.fnmatch(link[key],arg):
                 if debug:
-                    print "-> DEBUG: Argument \"%s\" as %s is valid for %s" % (link[key], key, link['friendlyname'])
+                    print '-> DEBUG: "%s" matches "%s" as %s for %s' % (link[key], arg, key, link['friendlyname'])
                 result = True
     return result
 

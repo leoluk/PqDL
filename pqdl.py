@@ -99,7 +99,7 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
     #parser.add_option('--log', help="Make a logfile that will contain all output.")
     #parser.add_option('--logfile', help="Filename of the logfile [default: %default]", default="pqdl.log")
     
-    parser.add_option('--myfinds', help="Trigger a My Finds Pocket Query if possible.", default=False, action='store_true')
+    parser.add_option('--myfinds', help="Trigger a My Finds Pocket Query if possible (you'll most likely need to run this program again if the PQ is not generated fast enough, so consider using --myfinds with -l)", default=False, action='store_true')
     pr, ar = parser.parse_args()
 
 

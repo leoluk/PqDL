@@ -47,40 +47,54 @@ def error(msg):
 def optparse_setup():
     """Parsing options given to PqDL"""
     desc = __doc__
-    epilog = """Pass the names of the Pocket Queries you want to download as
-parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to 
-download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name', the name, the date or the ID of a PQ. You can use UNIX-style wildcards (*, ?, [x], [!x]). If any argument (username, password, PQ names, ...) contains spaces, put it into parantheses. Please run with -d -l to get the friendly name or other parameters. (IMPORTANT: the Pocket Queries needs to be zipped by GC.com!)
-This tool probably violates the Terms of Service by Groundspeak. 
-Please don't abuse it. """
+    epilog = """This tool probably violates the Terms of Service by Groundspeak. 
+Please don't abuse it. If any argument (username, password, PQ names, ...) contains spaces, put it into parantheses. """
 
     usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [options] [pq_1 pq_2 ...]"
 
     parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog, usage=usage)
+    
+    grp_prm = optparse.OptionGroup(parser, "Arguments",description="""Pass the names of the Pocket Queries you want to download as parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name', the name, the date, the cache count or the ID of a PQ. You can use UNIX-style wildcards (*, ?, [x], [!x]). Please run with -d -l to get the friendly name or other parameters.""")
+    
+    parser.add_option_group(grp_prm)
+    
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
-    parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces), you will be asked if you don't specify it")
-    parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet) [default: %default]", default=os.getcwd())
-    parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deleted the files ONLINE! WARNING: This is broken from time to time, thanks go to Groundspeak!", default=False, action='store_true')
-    parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed.", default=False, action='store_true')
-    parser.add_option('-z', '--unzip', help="Unzips and removes the downloaded ZIP files.", default=False, action='store_true')
-    parser.add_option('--keepzip', help="Do not remove unzipped files. (to be used with -z)", default=False, action='store_true')
-    parser.add_option('-s', '--singlefile', help="Overwrite existing files. When using this option, there won't be any timestamps added! (so just one file for every PQ in your DL folder)", action="store_true", default=False)
-    parser.add_option('-d', '--debug', help="Debug output (RECOMMENDED)", default=False, action='store_true')
-    parser.add_option('-t', '--httpdebug', help="HTTP debug output", default=False, action='store_true')
-    parser.add_option('-e', '--delay', help="Delays between the requests", default=False, action='store_true')
-    parser.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output", default=False, action='store_true')
-    parser.add_option('--ignoreerrors', help="Ignore version errors like mechanize <0.2", default=False, action='store_true')
-    parser.add_option('--httpmaindebug', help="HTTP 'getPQ' debug output", default=False, action='store_true')
-    parser.add_option('-l', '--list', help="Skip download", default=False, action='store_true')
-    parser.add_option('--ctl', help="Remove-CTL value (default: %default)", default='search')
+    parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces), you will be asked if you don't specify it (you can omit this!)")
+    parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet), will be set as default for other file parameters, sets the working dir [default: %default]", default=os.getcwd())
+    parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deletes the files ONLINE! WARNING: This is broken from time to time, thanks go to Groundspeak!", default=False, action='store_true')
+    parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed like My Finds.", default=False, action='store_true')
     
-    parser.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
-    parser.add_option('--usejournal', help="Like -j, but in read-only mode, it won't add new PQs or pqloader mappings to the journal (-j or this one!)", default=False, action='store_true')
-    parser.add_option('--resetjournal', help="Reset the log section of the journal", default=False, action='store_true')
-    parser.add_option('--journalfile', help="Filename of journal file [default: %default]", default="filestate.txt")
+    grp_zip = optparse.OptionGroup(parser, "ZIP options", """PqDL supports unzipping the Pocket Queries. They will be renamed automatically after unzipping by this pattern: Name-of-PQ_1234567_06-12-2010[_waypoints].gpx (-s will be used). Note: if you want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
+    grp_zip.add_option('-z', '--unzip', help="Unzips and removes the downloaded ZIP files.", default=False, action='store_true')
+    grp_zip.add_option('--keepzip', help="Do not remove unzipped files. (to be used with -z)", default=False, action='store_true')
+    parser.add_option_group(grp_zip)
     
-    parser.add_option('-m', '--mappings', help="Assign a GSAK Database for pqloader to every PQ, requires journal", default=False, action='store_true')
-    parser.add_option('--mapfile', help="File that contains the mapping section, default is the journal file. [default: %default, or the custom journal file if set]. For usage examples look at the project site.", default="filestate.txt", action='store_true')
-    parser.add_option('--sep', help="Seperator for pqloader [default: '%default']", default=" ", action='store_true')
+    parser.add_option('-s', '--singlefile', help="Overwrite existing files. When using this option, there won't be any timestamps added! (so just one file for every PQ in your DL folder), applies to unzip too", action="store_true", default=False)
+    parser.add_option('-e', '--delay', help="Random delays between the requests", default=False, action='store_true') 
+    parser.add_option('-l', '--list', help="Do not download anything, just list the files. Best to be used with -d.", default=False, action='store_true')
+    
+    grp_dbg = optparse.OptionGroup(parser, "Debug options", """They are lots of debug options. You should always use -d if the program doesn not exactly does what it's supposed to do, they are lots of interesting debug outputs. The other debug options are only needed for debugging special problems with the parser. PLEASE ALWAYS USE -d IF YOU SEND ME A BUG REPORT!""")
+    grp_dbg.add_option('-d', '--debug', help="Debug output (RECOMMENDED)", default=False, action='store_true')
+    grp_dbg.add_option('-t', '--httpdebug', help="HTTP header debug output, used for debugging fake requests", default=False, action='store_true')
+    grp_dbg.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output, used when -r doesn't works", default=False, action='store_true')
+    grp_dbg.add_option('--ignoreerrors', help="Ignore version errors", default=False, action='store_true')
+    grp_dbg.add_option('--httpmaindebug', help="HTTP 'getPQ' debug output, used for debugging the main parser that gets the PQ site table", default=False, action='store_true')
+    grp_dbg.add_option('--ctl', help="Remove-CTL value, used for debugging very special problems with -r (default: %default)", default='search')
+    parser.add_option_group(grp_dbg)
+    
+    grp_journal = optparse.OptionGroup(parser, "Journal and map options","""These are special options that will allow PqDL to remember which PQs have already been downloaded. This is based on the PQ latest generation date, if the PQ gets generated again, it will be downloaded. The journal file is an .ini file (by default filestate.txt) that can be used for the mappings too. The section for this feature is [Log].""")    
+    grp_journal.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
+    grp_journal.add_option('--usejournal', help="Like -j, but in read-only mode, it won't add new PQs or pqloader mappings to the journal (-j or this one!)", default=False, action='store_true')
+    grp_journal.add_option('--resetjournal', help="Reset the log section of the journal", default=False, action='store_true')
+    grp_journal.add_option('--journalfile', help="Filename of journal file [default: %default]", default="filestate.txt")
+    parser.add_option_group(grp_journal)
+    
+    grp_map = optparse.OptionGroup(parser, "GSAK/pqloader file mappings options","""This is a feature made for those who use PqDL in conjunction with pqloader. pqloader will take the first word in a PQs file name to decide in which database the PQs will be saved. This feature allows you to add this prefix automatically after downloading the PQs, so you don't longer need to rename your PQs online! This feature will use an .ini file like -j (this can be the same one, the default is filestate.txt too). In order to use this, you need to add a new section [Map] to the .ini file and mappings like My-PQ-Name=PQ-Prefix (one per line). You can use the name, friendlyname, date or ID, but no wildcards yet.""")
+    grp_map.add_option('-m', '--mappings', help="Assign a GSAK Database for pqloader to every PQ, requires journal", default=False, action='store_true')
+    grp_map.add_option('--mapfile', help="File that contains the mapping section, default is the journal file. [default: %default, or the custom journal file if set]. For usage examples look at the project site.", default="filestate.txt", action='store_true')
+    grp_map.add_option('--sep', help="Seperator for pqloader [default: '%default']", default=" ", action='store_true')
+    parser.add_option_group(grp_map)
+
     
     #parser.add_option('--log', help="Make a logfile that will contain all output.")
     #parser.add_option('--logfile', help="Filename of the logfile [default: %default]", default="pqdl.log")
@@ -267,7 +281,7 @@ def print_section(name):
 def get_mapstr(mparser, link, debug):
     isinstance(mparser, ConfigParser.ConfigParser)
     if mparser.has_section('Map'):
-        for key in ('chkdelete', 'friendlyname', 'name', 'date'):
+        for key in ('chkdelete', 'friendlyname', 'name', 'date', 'count'):
             if mparser.has_option('Map',link[key]):
                 if debug:
                     print "-> DEBUG: Map entry \"%s\" (%s) found for %s" % (link[key], key, link['friendlyname'])
@@ -278,7 +292,7 @@ def get_mapstr(mparser, link, debug):
  
 def check_linkmatch(link, linklist, debug):
     result = False
-    for key in ('chkdelete', 'friendlyname', 'name', 'date'):
+    for key in ('chkdelete', 'friendlyname', 'name', 'date', 'count'):
         for arg in linklist:
             if fnmatch.fnmatch(link[key],arg):
                 if debug:

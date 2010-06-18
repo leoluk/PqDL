@@ -22,7 +22,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
-version = "0.3.0-trunk"
+version = "0.3.0-stable"
 
 import mechanize
 import optparse

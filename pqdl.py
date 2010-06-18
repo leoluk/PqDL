@@ -328,7 +328,7 @@ def main():
             #error("Please use the most recent version of mechanize. The version you are running is too old.")
         
     ### Main program
-    print "-> LOGGING IN"
+    print "-> LOGGING IN as %s" % opts.username
     login_gc(browser,opts.username, opts.password)
     delay()
     print "-> GETTING LINKS\n" 

@@ -22,7 +22,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
-version = "0.3.0-stable"
+__version__ = "0.3.0-trunk"
 
 import mechanize
 import optparse
@@ -36,6 +36,7 @@ import ConfigParser
 import zipfile
 import getpass
 import fnmatch
+import codecs
 
 from time import sleep
 
@@ -52,7 +53,7 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
 
     usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [options] [pq_1 pq_2 ...]"
 
-    parser = optparse.OptionParser(description=desc, version="%%prog %s" % version, epilog=epilog, usage=usage)
+    parser = optparse.OptionParser(description=desc, version="%%prog %s" % __version__, epilog=epilog, usage=usage)
     
     grp_prm = optparse.OptionGroup(parser, "Arguments",description="""Pass the names of the Pocket Queries you want to download as parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name', the name, the date, the cache count or the ID of a PQ. You can use UNIX-style wildcards (*, ?, [x], [!x]). Please run with -d -l to get the friendly name or other parameters.""")
     

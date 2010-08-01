@@ -1,7 +1,7 @@
 from distutils.core import setup
 import py2exe
 import py_compile
-fromudes = ["Secur32.dll", "SHFOLDER.dll"]
+excludes = ["Secur32.dll", "SHFOLDER.dll"]
 setup(
     options = {
         "py2exe": {

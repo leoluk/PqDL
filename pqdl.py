@@ -22,7 +22,7 @@ need to do it by hand or with this script.
 This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
-__version__ = "0.3.0-trunk"
+__version__ = "0.3.1-stable"
 
 import mechanize
 import optparse
@@ -233,27 +233,27 @@ def getLinkDB(browser,special, debug, httpdebug):
         try:
             linklist.append({
                 'type': 'normal',
-                'index': link.contents[3].contents[0].strip('.'),
-                'url': link.contents[5].contents[2]['href'],
-                'name': link.contents[5].contents[2].contents[0],
-                'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
-                'size': link.contents[7].contents[0],
-                'count': link.contents[9].contents[0],
-                'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
+                'index': link.contents[3].contents[0].strip('.').strip(),
+                'url': link.contents[5].contents[3]['href'],
+                'name': link.contents[5].contents[3].contents[0].strip(),
+                'friendlyname': slugify(link.contents[5].contents[3].contents[0].strip()),
+                'size': link.contents[7].contents[0].strip(),
+                'count': link.contents[9].contents[0].strip(),
+                'date': link.contents[11].contents[0].strip().split(' ')[0].replace('/','-'),
                 #'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
-                'chkdelete': link.contents[1].contents[0]['value'],
+                'chkdelete': link.contents[1].contents[1]['value'],
             })
         except IndexError:
             if special:
                 linklist.append({
                     'type': 'nodelete',
-                    'index': link.contents[3].contents[0].strip('.'),
-                    'url': link.contents[5].contents[2]['href'],
-                    'name': link.contents[5].contents[2].contents[0],
-                    'friendlyname': slugify(link.contents[5].contents[2].contents[0]),
-                    'size': link.contents[7].contents[0],
-                    'count': link.contents[9].contents[0],
-                    'date': link.contents[11].contents[0].split(' ')[0].replace('/','-'),
+                    'index': link.contents[3].contents[0].strip('.').strip(),
+                    'url': link.contents[5].contents[3]['href'],
+                    'name': link.contents[5].contents[3].contents[0].strip(),
+                    'friendlyname': slugify(link.contents[5].contents[3].contents[0].strip()),
+                    'size': link.contents[7].contents[0].strip(),
+                    'count': link.contents[9].contents[0].strip(),
+                    'date': link.contents[11].contents[0].strip().split(' ')[0].replace('/','-'),
                     #'preserve': link.contents[11].contents[0].split(' ',1)[1][1:-1],
                     'chkdelete': 'myfinds',
                 })
@@ -303,7 +303,7 @@ def check_linkmatch(link, linklist, debug):
 
 def main():
     ### Parsing options
-    print "-> PQdl v%s by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl\n" % (version)
+    print "-> PQdl v%s by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl\n" % (__version__)
     opts, args = optparse_setup()
     browser = init_mechanize(opts.httpdebug)
     excludes = []

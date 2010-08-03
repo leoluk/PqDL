@@ -26,6 +26,8 @@ __version__ = "0.3.2"
 __status__ = "trunk"
 __author__ = "Leopold Schabel"
 
+autoupdate_url = "http://www.leoluk.de/autoupdater"
+
 import mechanize
 import optparse
 import cookielib
@@ -40,15 +42,43 @@ import getpass
 import fnmatch
 import codecs
 import logging
+import urllib2
+import functools
 
 from time import sleep
 
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format="%(levelname)s: %(name)s: %(message)s")
+logging.basicConfig(stream=sys.stdout, format="%(levelname)s - %(name)s -> %(message)s", level=logging.DEBUG)
 logging.addLevelName(5,'HTTPDEBUG')
 
 def delay():
     if odelay:
         sleep(random.randint(500,5000)/1000)
+
+
+#def check_update():
+    #logger = logging.getLogger('autoupdate')
+    #logger.info('Checking updates for PqDL...')
+    #try:
+        #request = urllib2.url[...]
+    #except urllib2.HTTPError:
+        #logger.exception("Autoupdate on {url} failed".format(autoupdate_url))
+    
+        
+def rename(source, dest, *args, **kwargs):
+    logger = logging.getLogger('tool.rename')
+    try:
+        os.rename(source, dest, *args, **kwargs)
+        logger.info("Renaming {0} to {1}".format(source, dest))
+    except WindowsError:
+        logger.exception('Renaming {0} to {1} failed'.format(source, dest))
+        
+def remove(path, *args, **kwargs):
+    logger = logging.getLogger('tool.remove')
+    try:
+        os.remove(path, *args, **kwargs)
+        logger.debug("Removing %s" % path)
+    except WindowsError:
+        logger.exception('Removing %s failed' % path)
 
 def optparse_setup():
     """Parsing options given to PqDL"""
@@ -85,14 +115,13 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
     parser.add_option('-e', '--delay', help="Random delays between the requests", default=False, action='store_true') 
     parser.add_option('-l', '--list', help="Do not download anything, just list the files. Best to be used with -d.", default=False, action='store_true')
     
-    grp_dbg = optparse.OptionGroup(parser, "Debug options", """They are lots of debug options. You should always use -d if the program doesn not exactly does what it's supposed to do, they are lots of interesting debug outputs. The other debug options are only needed for debugging special problems with the parser. PLEASE ALWAYS USE -d IF YOU SEND ME A BUG REPORT!""")
-    grp_dbg.add_option('-d', '--debug', help="Debug output (RECOMMENDED)", default=False, action='store_true')
-    grp_dbg.add_option('-t', '--httpdebug', help="HTTP header debug output, used for debugging fake requests", default=False, action='store_true')
-    grp_dbg.add_option('--httpremovedebug', help="HTTP 'remove PQ' debug output, used when -r doesn't works", default=False, action='store_true')
-    grp_dbg.add_option('--ignoreerrors', help="Ignore version errors", default=False, action='store_true')
-    grp_dbg.add_option('--httpmaindebug', help="HTTP 'getPQ' debug output, used for debugging the main parser that gets the PQ site table", default=False, action='store_true')
+    grp_dbg = optparse.OptionGroup(parser, "Logging options", """They are lots of debug options. You should always use -d if the program doesn not exactly does what it's supposed to do, they are lots of interesting debug outputs. The other debug options are only needed for debugging special problems with the parser. PLEASE ALWAYS USE -d IF YOU SEND ME A BUG REPORT!""")
+    grp_dbg.add_option('-d', '--debug', help="Debug output, will set --loglevel to DEBUG", default=False, action='store_true')
     grp_dbg.add_option('--ctl', help="Remove-CTL value, used for debugging very special problems with -r (default: %default)", default='search')
     parser.add_option_group(grp_dbg)
+    grp_dbg.add_option('--logfile', help="Specify a filename if you want logging to a file.")
+    grp_dbg.add_option('--loglevel', help="Set the loglevel. Available (in severity order): HTTPDEBUG, DEBUG, INFO, WARNING, ERROR, CRITICAL. You usally only need HTTPDEBUG, DEBUG or INFO. Default is %default. Overrides -d", default='INFO', choices=('HTTPDEBUG', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'))
+    grp_dbg.add_option('--logmode', help="Set the logfile access mode, append or overwrite.", default='append', choices=('append', 'overwrite'))
     
     grp_journal = optparse.OptionGroup(parser, "Journal and map options","""These are special options that will allow PqDL to remember which PQs have already been downloaded. This is based on the PQ latest generation date, if the PQ gets generated again, it will be downloaded. The journal file is an .ini file (by default filestate.txt) that can be used for the mappings too. The section for this feature is [Log].""")    
     grp_journal.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
@@ -107,10 +136,6 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
     grp_map.add_option('--sep', help="Seperator for pqloader [default: '%default']", default=" ", action='store_true')
     parser.add_option_group(grp_map)
 
-    
-    #parser.add_option('--log', help="Make a logfile that will contain all output.")
-    #parser.add_option('--logfile', help="Filename of the logfile [default: %default]", default="pqdl.log")
-    
     parser.add_option('--myfinds', help="Trigger a My Finds Pocket Query if possible (you'll most likely need to run this program again if the PQ is not generated fast enough, so consider using --myfinds with -l)", default=False, action='store_true')
     pr, ar = parser.parse_args()
 
@@ -136,6 +161,26 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
         print_help()
         logger.critical("You can't use --keepzip without -z (--unzip).")
         sys.exit(1)
+        
+    if pr.debug:
+        level = logging.DEBUG
+    else:
+        levels = {
+            'HTTPDEBUG': 5,
+            'DEBUG': logging.DEBUG,
+            'INFO': logging.INFO,
+            'WARNING': logging.WARNING,
+            'ERROR': logging.ERROR,
+            'CRITICAL': logging.CRITICAL,
+            }
+        level = levels[pr.loglevel]
+        
+    logging.root.setLevel(level)
+    
+    if pr.logfile:
+        filehandler = logging.FileHandler(pr.logfile, mode = ('a' if pr.logmode == 'append' else 'w'))
+        filehandler.formatter = logging.Formatter("%(module)s line %(lineno)d - %(asctime)s - %(levelname)s - %(funcName)s - %(name)s - %(message)s")
+        logging.root.addHandler(filehandler)
         
     return pr, ar
 
@@ -238,7 +283,7 @@ class PqBrowser(mechanize.Browser):
                 if special:
                     chkdelete = 'myfinds'
                 else:
-                    logger.debug("Pocket Query %s skipped because of -n" % slugify(link.contents[5].contents[2].contents[0]))
+                    logger.debug("MyFinds skipped because of -n" )
                     continue
                 
             linklist.append({
@@ -295,8 +340,6 @@ def check_linkmatch(link, linklist):
 
 def main():
     ### Parsing options
-    logger = logging.getLogger('main')
-    logger.info("PQdl v%s (%s) by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl" % (__version__,__status__))
     opts, args = optparse_setup()
     browser = PqBrowser()
     excludes = []
@@ -309,12 +352,14 @@ def main():
         
     odelay = opts.delay
     
+    logger = logging.getLogger('main')
+    
     if not os.path.exists(opts.outputdir):
         os.makedirs(opts.outputdir)
         logger.debug("mechanize %d.%d.%d; BeautifulSoup: %s; Filename: %s; Python: %s" % (mechanize.__version__[0], mechanize.__version__[1], mechanize.__version__[2], BeautifulSoup.__version__, os.path.basename(sys.argv[0]), sys.version))
 
     if BeautifulSoup.__version__[:3] != '3.0':
-        logger.warning("PqDL requires BeautifulSoup 3.0.x You are running {version}. If it doesn't works, you now know why.".format(version=BeautifulSoup.__version__))
+        logger.warning("PqDL requires BeautifulSoup 3.0.x. You are using {version}. If it doesn't works, you now know why.".format(version=BeautifulSoup.__version__))
         
     ### Main program
     logger = logging.getLogger('main.login')
@@ -326,10 +371,11 @@ def main():
     linklist = browser.getLinkDB(not opts.nospecial)
     delay()
     os.chdir(opts.outputdir)
-    if logger.getEffectiveLevel == 10:
+    if logger.getEffectiveLevel() <= 10:
         for link in linklist:
+            logger.debug("Data for %s:" % link['friendlyname'])
             for field, data in link.iteritems():
-                logger.debug('%s: %s' % (field, data))
+                logger.debug('%s - %s: %s' % (link['friendlyname'],field, data))
     
     logger = logging.getLogger('main.linkdb.sync')
     
@@ -351,36 +397,40 @@ def main():
         logger.debug("Mappings: %s" %mfiles)
         
     if opts.myfinds:
-        trigger_myfinds(browser)
+        browser.trigger_myfinds()
      
     logger = logging.getLogger('main.select')
     logger.info("Selecting files")
+    
+    if (logger.getEffectiveLevel() >= 10) and len(args):
+        logger.info("NOTE: please enable debug (-d) if you want to see what includes/excludes do or if they don't work as expected!")
+        
     if linklist == []:
-        logger.warning("No valid Pocket Queries found. (try -d)")
+        logger.info("No valid Pocket Queries found online.")
         dllist = []
     else:
-        if args == []:
-            logger.info("No arguments given, downloading all PQs.")
+        if not len(args):
+            logger.debug("No include arguments given, downloading all PQs.")
         dllist = []
         for link in linklist:
             assert isinstance(args, list)
             if journal:
                 try:
                     if cparser.get('Log',link['chkdelete']) == link['date']:
-                        logger.debug('"{name}" skipped because {shortname} with date {date} has already been downloaded.'.format(name=link['name'],shortname=link['friendlyname'], date=link['date']))
+                        logger.info('"{name}" skipped because {friendlyname} with date {date} has already been downloaded.'.format(**link))
                         continue
                 except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
                     pass
             if (check_linkmatch(link, excludes)):
-                logger.debug('"{name}" skipped because {shortname} is exluded.'.format(name=link['name'],shortname=link['friendlyname']))
+                logger.info('"{name}" skipped because it is is exluded.'.format(name=link['name']))
                 continue
             if (check_linkmatch(link, args)) | (args == []):
-                logger.info('"%s" (%s) will be downloaded' % (link['name'], link['date']))
+                logger.info('"{name}" ({date}) will be downloaded'.format(**link))
                 dllist.append(link)
             else:
-                    logger.debug('"{name}" skipped because {shortname} is not in the arguments list.'.format(name=link['name'],shortname=link['friendlyname']))
+                    logger.debug('"{name}" skipped because it is not in the arguments list.'.format(**link))
         if dllist == []:
-            logger.info("All PQs skipped." if logger.getEffectiveLevel == 10 else "All PQs skipped. If you want to know why, set the loglevel to DEBUG")
+            logger.info("All PQs skipped." if logger.getEffectiveLevel() <= 10 else "All PQs skipped. If you want to know why, enable debug (-d)!")
             
     logger = logging.getLogger('main.download')
     logger.info("Downloading selected files")
@@ -395,14 +445,15 @@ def main():
         dllist = []
     for n, link in enumerate(dllist):
         if link['name'] != link['friendlyname']:
-            logger.info('Downloading %d/%d: "%s" (Friendly Name: %s) (%s) [%s]' % (n+1, len(dllist), link['name'], link['friendlyname'], link['size'], link['date']))
+            logger.info('Downloading {0}/{1}: "{name}" (Friendly Name: {friendlyname}) ({size}) [{date}]'.format(n+1, len(dllist), **link))
         else:
-            logger.info('Downloading %d/%d: "%s" (%s) [%s]' % (n+1, len(dllist), link['name'], link['size'], link['date']))
-        filename = '%s.pqtmp' % (link['friendlyname'])
+            logger.info('Downloading {0}/{1}: "{name}" ({size}) [{date}]'.format(n+1, len(dllist), **link))
+        filename = '{friendlyname}.pqtmp'.format(**link)
         link['filename'] = filename
         delay()
         
         browser.download_pq(link['url'],filename, _reporthook)
+        
         print('\r  > Done.')
         if journal:
             if not cparser.has_section('Log'):
@@ -411,24 +462,49 @@ def main():
             cparser.set('Log',link['chkdelete'],link ['date'])
 
     delay()
+    
+    
+    class FilenameDict(object):
+        def __init__(self, link, suffix):
+            self.suffix = suffix
+            self.link = link
+            self.base = self.single if opts.singlefile else self.basic
+            
+        basic = {
+                'normal':'{mapstr}{chkdelete}-{friendlyname}_{date}',
+                'myfinds':'{mapstr}MyFinds_{date}',
+                'waypoints':'{mapstr}{chkdelete}-{friendlyname}_{date}_waypoints'
+                }
+            
+        single = {
+                'normal':'{mapstr}{chkdelete}-{friendlyname}',
+                'myfinds':'{mapstr}MyFinds',
+                'waypoints':'{mapstr}{chkdelete}-{friendlyname}_waypoints'
+                }
+            
+        def __getattr__(self, name):
+            return "%s.%s" % (self.base[name].format(**self.link), self.suffix)
+    
+            
+
     logger = logging.getLogger('main.process')
-    logger.info("main downloaded files")
+    logger.info("Processing downloaded files")
     if dllist == []:
-        logger.warning("No downloads to process. (try -d)")
+        logger.info("No downloads to process")
     for link in dllist:
-        mapstr = get_mapstr(mparser, link) + opts.sep if opts.mappings else ""
-        link['realfilename'] = ('%s%s_%s.zip' % (mapstr, link['friendlyname'],link['date']) if not opts.singlefile else '%s%s.zip' % (mapstr, link['friendlyname']))
-        logger.info("Renaming %s -> %s" % (link['filename'],link['realfilename']))
+        template = FilenameDict(link, 'zip')
+        link['mapstr'] = get_mapstr(mparser, link) + opts.sep if opts.mappings else ''
+        link['realfilename'] = template.normal
         if os.path.isfile(link['realfilename']):
-            os.remove(link['realfilename'])
-        os.rename(link['filename'],link['realfilename'])
-        link['mapstr'] = mapstr
+            remove(link['realfilename'])
+        rename(link['filename'],link['realfilename'])
 
     if opts.unzip:
         logger = logging.getLogger('main.unzip')
         logger.info("Unzipping the downloaded files")
         for link in dllist:
-            logger.info("Unzipping %s" % link['realfilename'])
+            template = FilenameDict(link,'gpx')
+            logger.info("Unzipping {realfilename}".format(**link))
 
             zfile = zipfile.ZipFile(link['realfilename'])
             for info in zfile.infolist():
@@ -436,25 +512,22 @@ def main():
                 logger.debug("{filename} (size: {size})".format(filename=info.filename, size=info.file_size))
                 zfile.extract(info)
                 mapstr = link['mapstr']
-                if opts.singlefile:
-                    filename = mapstr+info.filename
+
+                if link['chkdelete'] == 'myfinds':
+                    filename = template.myfinds
                 else:
-                    if link['chkdelete'] == 'myfinds':
-                        filename = "%sMyFinds_%s.gpx" % (mapstr, link['date'])
-                    else:
-                        filename = "%s%s_%s_%s.gpx" % (mapstr, link['friendlyname'],link['chkdelete'],link['date'])
-                    if 'wpts' in info.filename:
-                        filename = "%s%s_%s_%s_waypoints.gpx" % (mapstr, link['friendlyname'],link['chkdelete'],link['date'])
-                if os.path.isfile(filename):
-                    os.remove(filename)
-                logger.debug("Renaming %s -> %s" % (info.filename, filename))
-                os.rename(info.filename, filename)
+                    filename = template.normal
+                if 'wpts' in info.filename:
+                    filename = template.waypoints
+                if info.filename != filename:
+                    if os.path.isfile(filename):
+                        remove(filename)
+                    rename(info.filename, filename)
             
             zfile.close()
             
             if not opts.keepzip:
-                logger.debug("Removing %s..." % link['realfilename'])
-                os.remove(link['realfilename'])
+                remove(link['realfilename'])
     
     if opts.remove:
         logger = logging.getLogger('main.removegc')
@@ -467,7 +540,7 @@ def main():
                 logger.warning("MyFinds Pocket Query can't be removed. If you want to exclude it in future runs, use -n")
                 continue
             rmlist.append(link['chkdelete'])
-            logger.info("Pocket Query \"%s\" will be removed (ID: %s)." % (link['name'], link['chkdelete']))
+            logger.info('Pocket Query "{name}" will be removed (ID: {chkdelete})'.format(**link))
         if rmlist != []:
             if opts.ctl != 'search':
                 ctl = opts.ctl
@@ -482,12 +555,14 @@ def main():
     logger = logging.getLogger('main')
     if opts.journal:
         try:
-            logger.debug("writing journal file %s" % opts.journalfile)
+            logger.debug("Writing journal file %s" % opts.journalfile)
             cfile = open(opts.journalfile, 'w')
             cparser.write(cfile)
         finally:
             cfile.close()
 
 if __name__ == "__main__":
+    logging.info("PQdl v%s (%s) by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl" % (__version__,__status__))
     main()
+    logging.info("Done")
 

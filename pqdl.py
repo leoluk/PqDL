@@ -19,14 +19,13 @@
 """PQdl is a tool that can download Pocket Queries from geocaching.com. 
 Pocket Queries that contain more than 500 caches won't be sent per mail, so you 
 need to do it by hand or with this script.
-This script is written by leoluk. Please look at www.leoluk.de/paperless-caching/pqdl for updates.
+This script is written by leoluk.
+Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
 __version__ = "0.3.2"
 __status__ = "trunk"
 __author__ = "Leopold Schabel"
-
-autoupdate_url = "http://www.leoluk.de/autoupdater"
 
 import mechanize
 import optparse
@@ -40,28 +39,73 @@ import ConfigParser
 import zipfile
 import getpass
 import fnmatch
-import codecs
 import logging
 import urllib2
+import uuid
+import webbrowser
 import functools
 
 from time import sleep
 
-logging.basicConfig(stream=sys.stdout, format="%(levelname)s - %(name)s -> %(message)s", level=logging.DEBUG)
+logging.basicConfig(stream=sys.stdout, 
+                    format="%(levelname)s - %(name)s -> %(message)s", 
+                    level=logging.DEBUG)
+
 logging.addLevelName(5,'HTTPDEBUG')
 
-def delay():
+def gdelay(odelay):
+    logger = logging.getLogger('main.delay')
+    logger.debug("Waiting random time")
     if odelay:
-        sleep(random.randint(500,5000)/1000)
+        sleep(random.randint(500, 5000) / 1000)
 
 
-#def check_update():
-    #logger = logging.getLogger('autoupdate')
-    #logger.info('Checking updates for PqDL...')
-    #try:
-        #request = urllib2.url[...]
-    #except urllib2.HTTPError:
-        #logger.exception("Autoupdate on {url} failed".format(autoupdate_url))
+def check_update(browser=True):
+    logger = logging.getLogger('update')
+    logger.info('Checking updates for PqDL...')
+    
+    url = "http://update.leoluk.de/{program}/{version}/{uuid}".format(
+        program='pqdl', 
+        version='{version}{suffix}'.format(
+            version=__version__,
+            suffix=(('-'+__status__) if __status__ != 'stable' else '')
+            ),
+        uuid=str(uuid.uuid1())
+        )
+        
+    try:
+        request = urllib2.urlopen(url)
+        response = request.read()
+        payload = response.split(' - ')
+        if payload[0] != 'pqdl':
+            logger.error("Update server returned invalid program: %s" 
+                         % payload[0])
+            return
+        
+        if payload[1] == 'latest':
+            logger.info("You are using the latest version")
+            return
+        elif payload[1] == 'future':
+            logger.info("You are using a beta version")
+            return
+        elif payload[3] == 'new':
+            if browser:
+                webbrowser.open_new_tab(payload[2])
+            else:
+                logger.info('Please update as soon as possible.')
+        elif payload[3] == 'known':
+            logger.warning("It is important to update PqDL!") 
+        else:
+            logger.error("Server returned invalid indicator: %s" % payload[1])
+            
+        logger.info(
+            "A newer version is available! Your version: {oldversion}, new version: {newversion}".format(oldversion="%s-%s" % (__version__, __status__), newversion=payload[1]))
+        
+        logger.info("Download on %s" % payload[2])
+            
+        
+    except IOError:
+        logger.exception("Autoupdate on update.leoluk.de failed")
     
         
 def rename(source, dest, *args, **kwargs):
@@ -84,15 +128,19 @@ def optparse_setup():
     """Parsing options given to PqDL"""
     desc = __doc__
     epilog = """This tool probably violates the Terms of Service by Groundspeak. 
-Please don't abuse it. If any argument (username, password, PQ names, ...) contains spaces, put it into parantheses. """
+Please don't abuse it. If any argument (username, password, PQ names, ...)contains spaces, put it into parantheses. """
 
     usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [options] [pq_1 pq_2 ...]"
 
-    parser = optparse.OptionParser(description=desc, version="%%prog %s-%s" % (__version__, __status__), epilog=epilog, usage=usage)
+    parser = optparse.OptionParser(description=desc, 
+                                   version="%%prog %s-%s" 
+                                   % (__version__, __status__), 
+                                   epilog=epilog, 
+                                   usage=usage)
     
     logger = logging.getLogger('cmdline')
     
-    grp_prm = optparse.OptionGroup(parser, "Arguments",description="""Pass the names of the Pocket Queries you want to download as parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name', the name, the date, the cache count or the ID of a PQ. You can use UNIX-style wildcards (*, ?, [x], [!x]). Please run with -d -l to get the friendly name or other parameters.""")
+    grp_prm = optparse.OptionGroup(parser, "Arguments", description="""Pass the names of the Pocket Queries you want to download as parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name', the name, the date, the cache count or the ID of a PQ. You can use UNIX-style wildcards (*, ?, [x], [!x]). Please run with -d -l to get the friendly name or other parameters.""")
     
     parser.add_option_group(grp_prm)
     
@@ -122,6 +170,7 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
     grp_dbg.add_option('--logfile', help="Specify a filename if you want logging to a file.")
     grp_dbg.add_option('--loglevel', help="Set the loglevel. Available (in severity order): HTTPDEBUG, DEBUG, INFO, WARNING, ERROR, CRITICAL. You usally only need HTTPDEBUG, DEBUG or INFO. Default is %default. Overrides -d", default='INFO', choices=('HTTPDEBUG', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'))
     grp_dbg.add_option('--logmode', help="Set the logfile access mode, append or overwrite.", default='append', choices=('append', 'overwrite'))
+    grp_dbg.add_option('--pqsitefile', help="This will replace the PQ listing download with a file. This will skip login and PQ site fetch, but not the download of the PQs themselves. If you want to skip that too, use -l.")
     
     grp_journal = optparse.OptionGroup(parser, "Journal and map options","""These are special options that will allow PqDL to remember which PQs have already been downloaded. This is based on the PQ latest generation date, if the PQ gets generated again, it will be downloaded. The journal file is an .ini file (by default filestate.txt) that can be used for the mappings too. The section for this feature is [Log].""")    
     grp_journal.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
@@ -140,15 +189,16 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
     pr, ar = parser.parse_args()
 
 
-    if not pr.username:
+    if not pr.username and not pr.pqsitefile:
         print_help()
         logger.critical("Please specify a username, I won't use mine :-)")
         sys.exit(1)
 
-    if (pr.mappings) and (pr.journalfile != 'filestate.txt') and (pr.mapfile == 'filestate.txt'):
+    if (pr.mappings) and (pr.journalfile != 'filestate.txt') \
+       and (pr.mapfile == 'filestate.txt'):
         pr.mapfile = pr.journalfile
     
-    if not pr.password:
+    if not pr.password and not pr.pqsitefile:
         pr.password = getpass.getpass("\nPassword for %s: " % pr.username)
         print ''
         
@@ -178,8 +228,11 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
     logging.root.setLevel(level)
     
     if pr.logfile:
-        filehandler = logging.FileHandler(pr.logfile, mode = ('a' if pr.logmode == 'append' else 'w'))
-        filehandler.formatter = logging.Formatter("%(module)s line %(lineno)d - %(asctime)s - %(levelname)s - %(funcName)s - %(name)s - %(message)s")
+        filehandler = logging.FileHandler(pr.logfile, 
+                                          mode = ('a' if pr.logmode == 'append' 
+                                                  else 'w'))
+        filehandler.formatter = logging.Formatter(
+            "%(module)s line %(lineno)d - %(asctime)s - %(levelname)s - %(funcName)s - %(name)s - %(message)s")
         logging.root.addHandler(filehandler)
         
     return pr, ar
@@ -187,6 +240,7 @@ Please don't abuse it. If any argument (username, password, PQ names, ...) conta
 
 class PqDLError(Exception):
     def __init__(self, value):
+        Exception.__init__(self, value)
         self.value = value
     def __str__(self):
         return repr(self.value)
@@ -207,7 +261,8 @@ class PqBrowser(mechanize.Browser):
         self.set_handle_referer(True)
         self.set_handle_robots(False)
         # Follows refresh 0 but not hangs on refresh > 0
-        self.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
+        self.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), 
+                                max_time=1)
         # Want debugging messages?
         #if debug:
         #    self.set_debug_http(True)
@@ -215,6 +270,8 @@ class PqBrowser(mechanize.Browser):
         #    self.set_debug_responses(True)
         # User-Agent (this is cheating, ok?)
         self.addheaders = [('User-agent', 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1')]
+        self.pqsimulate = False
+        self.pqfile = None
 
     def login_gc(self, username, password):
         """Login to GC.com site."""
@@ -229,7 +286,7 @@ class PqBrowser(mechanize.Browser):
         response = self.response().read()
         if not 'http://www.geocaching.com/my/' in response:
             logger.critical("Could not log in. Please check your password. If your username or password contains spaces, put it into parentheses!")
-            raise LoginError
+            exit(1)
      
     def delete_pqs(self, chkid, ctl):
         logger = logging.getLogger('browser.delpq')
@@ -239,7 +296,7 @@ class PqBrowser(mechanize.Browser):
         self.form['ctl00$ContentBody$PQDownloadList$hidIds'] = ",".join(chkid) + ","
         self.form['__EVENTTARGET'] = "ctl00$ContentBody$PQDownloadList$uxDownloadPQList$ctl%s$lnkDeleteSelected" % ctl
         self.submit()
-        logger.log(5,self.response().read())
+        logger.log(5, self.response().read())
 
     def trigger_myfinds(self):
         logger = logging.getLogger('browser.myfinds')
@@ -264,16 +321,19 @@ class PqBrowser(mechanize.Browser):
     def getLinkDB(self, special):
         """Gets the link DB. Requires login first!"""
         logger = logging.getLogger('browser.parser')
-        response = self.open("http://www.geocaching.com/pocket/default.aspx").read()
+        if not self.pqsimulate:
+            response = self.open("http://www.geocaching.com/pocket/default.aspx").read()
+            if not "http://www.geocaching.com/my/" in response:
+                logger.error("Invalid PQ site. Not logged in?")
+        else:
+            response = open(self.pqfile, 'r')
         #f = open('debug.txt')
         #response = f.read()
-        if not "http://www.geocaching.com/my/" in response:
-            logger.critical("Invalid PQ site. Not logged in?")
-            sys.exit(1)
+
         soup = BeautifulSoup.BeautifulSoup(response)
         links = soup(id=re.compile("trPQDownloadRow"))
         
-        logger.log(5,response)
+        logger.log(5, response)
     
         linklist = []
         for link in links:
@@ -320,10 +380,9 @@ def get_mapstr(mparser, link):
     logger = logging.getLogger('main.mapping.getstr')
     if mparser.has_section('Map'):
         for key in ('chkdelete', 'friendlyname', 'name', 'date', 'count'):
-            if mparser.has_option('Map',link[key]):
-                if debug:
-                    logger.debug("Map entry \"%s\" (%s) found for %s" % (link[key], key, link['friendlyname']))
-                return mparser.get('Map',link[key])
+            if mparser.has_option('Map', link[key]):
+                logger.debug("Map entry \"%s\" (%s) found for %s" % (link[key], key, link['friendlyname']))
+                return mparser.get('Map', link[key])
         return ""
     else:
         return ""
@@ -333,7 +392,7 @@ def check_linkmatch(link, linklist):
     logger = logging.getLogger('main.linkmatch')
     for key in ('chkdelete', 'friendlyname', 'name', 'date', 'count'):
         for arg in linklist:
-            if fnmatch.fnmatch(link[key],arg):
+            if fnmatch.fnmatch(link[key], arg):
                 logger.debug('"%s" matches "%s" as %s for %s' % (link[key], arg, key, link['friendlyname']))
                 result = True
     return result
@@ -341,16 +400,15 @@ def check_linkmatch(link, linklist):
 def main():
     ### Parsing options
     opts, args = optparse_setup()
+    check_update()
     browser = PqBrowser()
     excludes = []
     for arg in args:
         if arg[0] == '#':
             excludes.append(arg[1:])
             args.remove(arg)
-     
-    global odelay
         
-    odelay = opts.delay
+    delay = functools.partial(gdelay, odelay=opts.delay)
     
     logger = logging.getLogger('main')
     
@@ -363,9 +421,15 @@ def main():
         
     ### Main program
     logger = logging.getLogger('main.login')
-    logger.info("Logging in as {username}".format(username=opts.username))
-    browser.login_gc(opts.username, opts.password)
-    delay()
+    if opts.pqsitefile:
+        logger.info("Skipping login, simulation mode")
+        browser.pqsimulate = True
+        browser.pqfile = opts.pqsitefile
+    else:
+        logger.info("Logging in as {username}".format(username=opts.username))
+        browser.login_gc(opts.username, opts.password)
+        delay()
+    
     logger = logging.getLogger('main.linkdb')
     logger.info("Getting links")
     linklist = browser.getLinkDB(not opts.nospecial)
@@ -375,7 +439,7 @@ def main():
         for link in linklist:
             logger.debug("Data for %s:" % link['friendlyname'])
             for field, data in link.iteritems():
-                logger.debug('%s - %s: %s' % (link['friendlyname'],field, data))
+                logger.debug('%s - %s: %s' % (link['friendlyname'], field, data))
     
     logger = logging.getLogger('main.linkdb.sync')
     
@@ -416,7 +480,7 @@ def main():
             assert isinstance(args, list)
             if journal:
                 try:
-                    if cparser.get('Log',link['chkdelete']) == link['date']:
+                    if cparser.get('Log', link['chkdelete']) == link['date']:
                         logger.info('"{name}" skipped because {friendlyname} with date {date} has already been downloaded.'.format(**link))
                         continue
                 except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
@@ -428,7 +492,7 @@ def main():
                 logger.info('"{name}" ({date}) will be downloaded'.format(**link))
                 dllist.append(link)
             else:
-                    logger.debug('"{name}" skipped because it is not in the arguments list.'.format(**link))
+                logger.debug('"{name}" skipped because it is not in the arguments list.'.format(**link))
         if dllist == []:
             logger.info("All PQs skipped." if logger.getEffectiveLevel() <= 10 else "All PQs skipped. If you want to know why, enable debug (-d)!")
             
@@ -452,14 +516,14 @@ def main():
         link['filename'] = filename
         delay()
         
-        browser.download_pq(link['url'],filename, _reporthook)
+        browser.download_pq(link['url'], filename, _reporthook)
         
         print('\r  > Done.')
         if journal:
             if not cparser.has_section('Log'):
                 cparser.add_section('Log')
-            cparser.set('Log',link['chkdelete'],link ['date'])
-            cparser.set('Log',link['chkdelete'],link ['date'])
+            cparser.set('Log', link['chkdelete'], link ['date'])
+            cparser.set('Log', link['chkdelete'], link ['date'])
 
     delay()
     
@@ -497,7 +561,7 @@ def main():
         link['realfilename'] = template.normal
         if os.path.isfile(link['realfilename']):
             remove(link['realfilename'])
-        rename(link['filename'],link['realfilename'])
+        rename(link['filename'], link['realfilename'])
 
     if opts.unzip:
         logger = logging.getLogger('main.unzip')
@@ -511,7 +575,6 @@ def main():
                 isinstance(info, zipfile.ZipInfo)
                 logger.debug("{filename} (size: {size})".format(filename=info.filename, size=info.file_size))
                 zfile.extract(info)
-                mapstr = link['mapstr']
 
                 if link['chkdelete'] == 'myfinds':
                     filename = template.myfinds
@@ -549,7 +612,7 @@ def main():
                 ctl = browser.find_ctl()
                 logger.debug("Found value %s" % ctl)
             logger.info("Sending removal request...")
-            browser.delete_pqs(rmlist, opts.httpremovedebug, ctl)
+            browser.delete_pqs(rmlist, ctl)
             logger.info("Removal request sent. If it didn't work, please report this a bug. Groundspeak makes so many changes on their site that this feature is broken from time to time.")
         
     logger = logging.getLogger('main')
@@ -562,7 +625,7 @@ def main():
             cfile.close()
 
 if __name__ == "__main__":
-    logging.info("PQdl v%s (%s) by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl" % (__version__,__status__))
+    logging.info("PQdl v%s (%s) by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl" , __version__, __status__)
     main()
     logging.info("Done")
 

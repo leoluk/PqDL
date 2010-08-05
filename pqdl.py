@@ -201,7 +201,9 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
     parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deletes the files ONLINE! Consider using the journal instead of this.", default=False, action='store_true')
     parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed like My Finds.", default=False, action='store_true')
     parser.add_option('--noupdate', help="Skip the online update check. Please make sure to check updates yourself!", default=False, action='store_true')
-    
+    parser.add_option('--nobrowser', help="Don't open the browser on new versions. The browser will be opened only once even without that switch.", default=False, action='store_true')
+    parser.add_option('--wait', help="Wait on the end of the program for a keypress. USeful if you invoke the script from a GUI like GSAK and you don't want it to close.", default=False, action='store_true')
+
     grp_zip = optparse.OptionGroup(parser, "ZIP options", """PqDL supports unzipping the Pocket Queries. They will be renamed automatically after unzipping by this pattern: Name-of-PQ_1234567_06-12-2010[_waypoints].gpx (-s will be used). Note: if you want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
     grp_zip.add_option('-z', '--unzip', help="Unzips and removes the downloaded ZIP files.", default=False, action='store_true')
     grp_zip.add_option('--keepzip', help="Do not remove unzipped files. (to be used with -z)", default=False, action='store_true')
@@ -449,7 +451,7 @@ def main():
     ### Parsing options
     opts, args = optparse_setup()
     if not opts.noupdate:
-        check_update()
+        check_update(opts.nobrowser)
     else:
         logger.info("Update check skipped. Please check for updates yourself!")
     browser = PqBrowser()
@@ -675,6 +677,9 @@ def main():
             cparser.write(cfile)
         finally:
             cfile.close()
+    
+    if opts.wait:
+        raw_input('Press any key to exit.')
 
 if __name__ == "__main__":
     logging.info("PQdl v%s (%s) by leoluk. Updates and help on www.leoluk.de/paperless-caching/pqdl" , __version__, __status__)

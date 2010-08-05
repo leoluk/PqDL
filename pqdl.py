@@ -54,9 +54,9 @@ logging.basicConfig(stream=sys.stdout,
 logging.addLevelName(5,'HTTPDEBUG')
 
 def gdelay(odelay):
-    logger = logging.getLogger('main.delay')
-    logger.debug("Waiting random time")
     if odelay:
+        logger = logging.getLogger('main.delay')
+        logger.debug("Waiting random time")
         sleep(random.randint(500, 5000) / 1000)
 
 
@@ -75,36 +75,52 @@ def check_update(browser=True):
         
     try:
         request = urllib2.urlopen(url)
-        response = request.read()
-        payload = response.split(' - ')
-        if payload[0] != 'pqdl':
-            logger.error("Update server returned invalid program: %s" 
-                         % payload[0])
+        parser = ConfigParser.ConfigParser()    
+        parser.readfp(request)
+        
+        def log_message(logger, message):
+            data = message.split(',', 1)
+            try:
+                logger.log(int(data[0]), data[1])
+            except ValueError:
+                logger.info(message)
+        
+        if parser.has_section('Message'):
+            logger = logging.getLogger('update.msg')
+            if parser.has_option('Message', 'msg'):
+                log_message(logger, parser.get('Message', 'msg'))
+            if parser.has_option('Message', 'privmsg'):
+                log_message(logger, parser.get('Message', 'privmsg'))
+            
+        
+        if not parser.has_section('Program'):
+            logger.error('Invalid update data: no header')
             return
         
-        if payload[1] == 'latest':
+        result = parser.get('Program', 'result')
+        
+        if result == 'latest':
             logger.info("You are using the latest version")
             return
-        elif payload[1] == 'future':
+        elif result == 'future':
             logger.info("You are using a beta version")
             return
-        elif payload[3] == 'new':
+        elif result == 'new':
             if browser:
-                webbrowser.open_new_tab(payload[2])
+                webbrowser.open_new_tab(parser.get('Program','url'))
             else:
                 logger.info('Please update as soon as possible.')
-        elif payload[3] == 'known':
+        elif result == 'known':
             logger.warning("It is important to update PqDL!") 
         else:
-            logger.error("Server returned invalid indicator: %s" % payload[1])
+            logger.error("Server returned invalid result: %s" % result)
             
         logger.info(
-            "A newer version is available! Your version: {oldversion}, new version: {newversion}".format(oldversion="%s-%s" % (__version__, __status__), newversion=payload[1]))
+            "A newer version is available! Your version: {oldversion}, new version: {newversion}".format(oldversion="%s-%s" % (__version__, __status__), newversion=parser.get('Program', 'version')))
         
-        logger.info("Download on %s" % payload[2])
-            
+        logger.info("More info on %s" % parser.get('Program', 'url'))
         
-    except IOError:
+    except:
         logger.exception("Autoupdate on update.leoluk.de failed")
     
         

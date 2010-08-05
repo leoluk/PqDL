@@ -86,7 +86,7 @@ def check_update(browser=True):
     # If the version is stable, the __status__-String is omitted
     # (this is required for the compairision on the server).
     
-    url = "{server}{program}/{version}/{uuid}".format(
+    url = "{server}/{program}/{version}/{uuid}".format(
         server=updateserver,
         program='pqdl', 
         version='{version}{suffix}'.format(
@@ -237,6 +237,20 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
 
     parser.add_option('--myfinds', help="Trigger a My Finds Pocket Query if possible (you'll most likely need to run this program again if the PQ is not generated fast enough, so consider using --myfinds with -l)", default=False, action='store_true')
     pr, ar = parser.parse_args()
+    
+    parser = ConfigParser.ConfigParser()
+    parser.read([
+        os.path.join(pr.outputdir, 'pqdl.ini'),
+        os.path.join(os.path.dirname(sys.argv[0]),'pqdl.ini')
+    ])
+    
+    if parser.has_section('Options'):
+        for setting in parser.items('Options'):
+            setattr(pr, *setting)
+    
+    if parser.has_section('Arguments'):
+        for setting in parser.items('Arguments'):
+            ar.append(setting[1])
 
 
     if not pr.username and not pr.pqsitefile:
@@ -450,10 +464,6 @@ def check_linkmatch(link, linklist):
 def main():
     ### Parsing options
     opts, args = optparse_setup()
-    if not opts.noupdate:
-        check_update(opts.nobrowser)
-    else:
-        logger.info("Update check skipped. Please check for updates yourself!")
     browser = PqBrowser()
     excludes = []
     for arg in args:
@@ -464,6 +474,11 @@ def main():
     delay = functools.partial(gdelay, odelay=opts.delay)
     
     logger = logging.getLogger('main')
+    
+    if not opts.noupdate:
+        check_update(opts.nobrowser)
+    else:
+        logger.info("Update check skipped. Please check for updates yourself!")
     
     if not os.path.exists(opts.outputdir):
         os.makedirs(opts.outputdir)
@@ -520,7 +535,7 @@ def main():
     logger = logging.getLogger('main.select')
     logger.info("Selecting files")
     
-    if (logger.getEffectiveLevel() >= 10) and len(args):
+    if (logger.getEffectiveLevel() > 10) and len(args):
         logger.info("NOTE: please enable debug (-d) if you want to see what includes/excludes do or if they don't work as expected!")
         
     if linklist == []:

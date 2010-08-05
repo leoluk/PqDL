@@ -47,13 +47,25 @@ import functools
 
 from time import sleep
 
+updateserver = "http://update.leoluk.de"
+
+# Inits the default logger; I use a seperate logger for every part of the 
+# program. This allows some nicely formatted output
 logging.basicConfig(stream=sys.stdout, 
                     format="%(levelname)s - %(name)s -> %(message)s", 
                     level=logging.DEBUG)
 
+# I need a new level for HTTP debug as it generates so much output
+# This lvel can only be used with logger.log(5, "message")
 logging.addLevelName(5,'HTTPDEBUG')
 
+# This method allows dynamic delays as it is called with functool.partial
+# later, so a simple call to gdelay() will only wait if needed
 def gdelay(odelay):
+    """This method waits a random time if odelay == True.
+    Please note this is best used with functools.partial.
+    """
+    
     if odelay:
         logger = logging.getLogger('main.delay')
         logger.debug("Waiting random time")
@@ -61,10 +73,21 @@ def gdelay(odelay):
 
 
 def check_update(browser=True):
+    """This method checks for new updates on a compatible update server."""
+    
+    # Getting the logger for this method. I do this for every logical part of
+    # the program, so it won't be commented later.
+    
     logger = logging.getLogger('update')
     logger.info('Checking updates for PqDL...')
     
-    url = "http://update.leoluk.de/{program}/{version}/{uuid}".format(
+    # Building the URL to request. It contains the server name, the program and
+    # the version string and a uuid.uuid1() for identification.
+    # If the version is stable, the __status__-String is omitted
+    # (this is required for the compairision on the server).
+    
+    url = "{server}{program}/{version}/{uuid}".format(
+        server=updateserver,
         program='pqdl', 
         version='{version}{suffix}'.format(
             version=__version__,
@@ -73,12 +96,20 @@ def check_update(browser=True):
         uuid=str(uuid.uuid1())
         )
         
-    try:
+    # The entire update process will run in a catchall-try-except to not
+    # interrupt the program. If an exception occurs, it will be printed
+    # including a traceback.
+    
+    try: 
+        # Opening the URL that was built before
         request = urllib2.urlopen(url)
+        # Making a new ConfigParser and feeding it with the request result
         parser = ConfigParser.ConfigParser()    
+        # urllib2.urlopen returns a file-like object, so I can do this:
         parser.readfp(request)
         
         def log_message(logger, message):
+            """Generic code that prints a received message"""
             data = message.split(',', 1)
             try:
                 logger.log(int(data[0]), data[1])
@@ -434,10 +465,11 @@ def main():
     
     if not os.path.exists(opts.outputdir):
         os.makedirs(opts.outputdir)
-        logger.debug("mechanize %d.%d.%d; BeautifulSoup: %s; Filename: %s; Python: %s" % (mechanize.__version__[0], mechanize.__version__[1], mechanize.__version__[2], BeautifulSoup.__version__, os.path.basename(sys.argv[0]), sys.version))
+        
+    logger.debug("mechanize %d.%d.%d; BeautifulSoup: %s; Filename: %s; Python: %s" % (mechanize.__version__[0], mechanize.__version__[1], mechanize.__version__[2], BeautifulSoup.__version__, os.path.basename(sys.argv[0]), sys.version))
 
-    if BeautifulSoup.__version__[:3] != '3.0':
-        logger.warning("PqDL requires BeautifulSoup 3.0.x. You are using {version}. If it doesn't works, you now know why.".format(version=BeautifulSoup.__version__))
+    #if BeautifulSoup.__version__[:3] != '3.0':
+        #logger.warning("PqDL requires BeautifulSoup 3.0.x. You are using {version}. If it doesn't works, you now know why.".format(version=BeautifulSoup.__version__))
         
     ### Main program
     logger = logging.getLogger('main.login')

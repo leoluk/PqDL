@@ -23,8 +23,8 @@ This script is written by leoluk.
 Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
-__version__ = "0.3.2"
-__status__ = "stable"
+__version__ = "0.3.3"
+__status__ = "trunk"
 __author__ = "Leopold Schabel"
 
 import mechanize
@@ -169,6 +169,7 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet), will be set as default for other file parameters, sets the working dir [default: %default]", default=os.getcwd())
     parser.add_option('-r', '--remove', help="Remove downloaded files from GC.com. WARNING: This deletes the files ONLINE! Consider using the journal instead of this.", default=False, action='store_true')
     parser.add_option('-n', '--nospecial', help="Ignore special Pocket Queries that can't be removed like My Finds.", default=False, action='store_true')
+    parser.add_option('--noupdate', help="Skip the online update check. Please make sure to check updates yourself!", default=False, action='store_true')
     
     grp_zip = optparse.OptionGroup(parser, "ZIP options", """PqDL supports unzipping the Pocket Queries. They will be renamed automatically after unzipping by this pattern: Name-of-PQ_1234567_06-12-2010[_waypoints].gpx (-s will be used). Note: if you want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
     grp_zip.add_option('-z', '--unzip', help="Unzips and removes the downloaded ZIP files.", default=False, action='store_true')
@@ -416,7 +417,10 @@ def check_linkmatch(link, linklist):
 def main():
     ### Parsing options
     opts, args = optparse_setup()
-    check_update()
+    if not opts.noupdate:
+        check_update()
+    else:
+        logger.info("Update check skipped. Please check for updates yourself!")
     browser = PqBrowser()
     excludes = []
     for arg in args:

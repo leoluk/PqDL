@@ -24,7 +24,7 @@ Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
 __version__ = "0.3.2"
-__status__ = "trunk"
+__status__ = "stable"
 __author__ = "Leopold Schabel"
 
 import mechanize
@@ -302,7 +302,7 @@ class PqBrowser(mechanize.Browser):
         response = self.response().read()
         if not 'http://www.geocaching.com/my/' in response:
             logger.critical("Could not log in. Please check your password. If your username or password contains spaces, put it into parentheses!")
-            exit(1)
+            sys.exit(1)
      
     def delete_pqs(self, chkid, ctl):
         logger = logging.getLogger('browser.delpq')

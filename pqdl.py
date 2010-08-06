@@ -27,6 +27,8 @@ __version__ = "0.3.3"
 __status__ = "trunk"
 __author__ = "Leopold Schabel"
 
+# stdlib imports
+
 import mechanize
 import optparse
 import cookielib
@@ -59,13 +61,10 @@ logging.basicConfig(stream=sys.stdout,
 # This lvel can only be used with logger.log(5, "message")
 logging.addLevelName(5,'HTTPDEBUG')
 
-# This method allows dynamic delays as it is called with functool.partial
-# later, so a simple call to gdelay() will only wait if needed
 def gdelay(odelay):
     """This method waits a random time if odelay == True.
-    Please note this is best used with functools.partial.
-    """
-    
+    Please note this is best used with functools.partial    
+    """   
     if odelay:
         logger = logging.getLogger('main.delay')
         logger.debug("Waiting random time")
@@ -109,12 +108,27 @@ def check_update(browser=True):
         parser.readfp(request)
         
         def log_message(logger, message):
-            """Generic code that prints a received message"""
+            """Generic code that prints a received message. Message string
+            should be in this format:
+            
+            priority,message
+            
+            Parameters:
+            logger -- a logging.Logger instance
+            message -- the message
+            
+            If no priority found, it will use the plain message with priority
+            20 as fallback.
+        
+            """
+            
             data = message.split(',', 1)
             try:
                 logger.log(int(data[0]), data[1])
             except ValueError:
                 logger.info(message)
+        
+        # Parse the [Message] part of the update response
         
         if parser.has_section('Message'):
             logger = logging.getLogger('update.msg')
@@ -123,47 +137,67 @@ def check_update(browser=True):
             if parser.has_option('Message', 'privmsg'):
                 log_message(logger, parser.get('Message', 'privmsg'))
             
+        # An update response has to contain a [Program] section.
+        # (the [Message] is not required)
         
         if not parser.has_section('Program'):
             logger.error('Invalid update data: no header')
             return
         
+        # Shortcut definition
         result = parser.get('Program', 'result')
         
+        # Version check (the version check itself will be done on the server)
         if result == 'latest':
             logger.info("You are using the latest version")
-            return
+            return # no more informations anyway
         elif result == 'future':
             logger.info("You are using a beta version")
-            return
+            return #same as above
         elif result == 'new':
+            # The first time the server gets a request from a specific
+            # client (identified by the UUID) of a specific version, it
+            # will send 'new', later it will send 'known'
             if browser:
                 webbrowser.open_new_tab(parser.get('Program','url'))
             else:
                 logger.info('Please update as soon as possible.')
         elif result == 'known':
+            # Remind the user to update the script
             logger.warning("It is important to update PqDL!") 
         else:
+            # This should never happen
             logger.error("Server returned invalid result: %s" % result)
             
+        # If the function is still running, a new version is available
+        
         logger.info(
             "A newer version is available! Your version: {oldversion}, new version: {newversion}".format(oldversion="%s-%s" % (__version__, __status__), newversion=parser.get('Program', 'version')))
         
         logger.info("More info on %s" % parser.get('Program', 'url'))
         
     except:
+        # End of the catchall block, will print a traceback along with the
+        # error message.
         logger.exception("Autoupdate on update.leoluk.de failed")
     
         
 def rename(source, dest, *args, **kwargs):
+    """os.rename with automatic output to the main logger. Will catch and
+    handle all related errors and print a traceback.
+    """    
     logger = logging.getLogger('tool.rename')
     try:
         os.rename(source, dest, *args, **kwargs)
         logger.info("Renaming {0} to {1}".format(source, dest))
     except WindowsError:
         logger.exception('Renaming {0} to {1} failed'.format(source, dest))
+
         
 def remove(path, *args, **kwargs):
+    """os.remove with automatic output to the main logger. Will catch and
+    handle all related errors and print a traceback.
+    """
     logger = logging.getLogger('tool.remove')
     try:
         os.remove(path, *args, **kwargs)
@@ -172,13 +206,14 @@ def remove(path, *args, **kwargs):
         logger.exception('Removing %s failed' % path)
 
 def optparse_setup():
-    """Parsing options given to PqDL"""
+    """Parsing options given to PqDL, should be called from main()"""
     desc = __doc__
     epilog = """This tool probably violates the Terms of Service by Groundspeak. 
 Please don't abuse it. If any argument (username, password, PQ names, ...)contains spaces, put it into parantheses. """
 
+    # custom usage string
     usage = "%prog [-h] -u USERNAME -p PASSWORD [-o OUTPUTDIR] [options] [pq_1 pq_2 ...]"
-
+    # optparse setup
     parser = optparse.OptionParser(description=desc, 
                                    version="%%prog %s-%s" 
                                    % (__version__, __status__), 
@@ -186,15 +221,16 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
                                    usage=usage)
     
     logger = logging.getLogger('cmdline')
-    
+    # Using an empty group as help text
     grp_prm = optparse.OptionGroup(parser, "Arguments", description="""Pass the names of the Pocket Queries you want to download as parameters (pq_1 pq_2 ...). (case sensitive!) If none given, it will try to download all of them. You can exlude PQs by adding # on the beginning of the name. You need to specify the 'friendly name', the name, the date, the cache count or the ID of a PQ. You can use UNIX-style wildcards (*, ?, [x], [!x]). Please run with -d -l to get the friendly name or other parameters.""")
-    
     parser.add_option_group(grp_prm)
     
     def print_help(*args, **kwargs):
+        """Handler for print_help that does prints a newline after the text"""
         parser.print_help(*args, **kwargs)
         print '\n'
     
+    # Core options
     parser.add_option('-u', '--username', help="Username on GC.com (use parentheses if it contains spaces)")
     parser.add_option('-p', '--password', help="Password on GC.com (use parentheses if it contains spaces), you will be asked if you don't specify it (you can omit this!)")
     parser.add_option('-o', '--outputdir', help="Output directory for downloaded files (will be created if it doesn't exists yet), will be set as default for other file parameters, sets the working dir [default: %default]", default=os.getcwd())
@@ -204,15 +240,18 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
     parser.add_option('--nobrowser', help="Don't open the browser on new versions. The browser will be opened only once even without that switch.", default=False, action='store_true')
     parser.add_option('--noexit', help="Wait on the end of the program for a keypress. USeful if you invoke the script from a GUI like GSAK and you don't want it to close.", default=False, action='store_true')
 
+    # ZIP options
     grp_zip = optparse.OptionGroup(parser, "ZIP options", """PqDL supports unzipping the Pocket Queries. They will be renamed automatically after unzipping by this pattern: Name-of-PQ_1234567_06-12-2010[_waypoints].gpx (-s will be used). Note: if you want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
     grp_zip.add_option('-z', '--unzip', help="Unzips and removes the downloaded ZIP files.", default=False, action='store_true')
     grp_zip.add_option('--keepzip', help="Do not remove unzipped files. (to be used with -z)", default=False, action='store_true')
     parser.add_option_group(grp_zip)
     
+    # back to core
     parser.add_option('-s', '--singlefile', help="Overwrite existing files. When using this option, there won't be any timestamps added! (so just one file for every PQ in your DL folder), applies to unzip too", action="store_true", default=False)
     parser.add_option('-e', '--delay', help="Random delays between the requests", default=False, action='store_true') 
     parser.add_option('-l', '--list', help="Do not download anything, just list the files. Best to be used with -d.", default=False, action='store_true')
     
+    # Debug and logging options
     grp_dbg = optparse.OptionGroup(parser, "Logging options", """They are lots of debug options. You should always use -d if the program doesn not exactly does what it's supposed to do, they are lots of interesting debug outputs. The other debug options are only needed for debugging special problems with the parser. PLEASE ALWAYS USE -d IF YOU SEND ME A BUG REPORT!""")
     grp_dbg.add_option('-d', '--debug', help="Debug output, will set --loglevel to DEBUG", default=False, action='store_true')
     grp_dbg.add_option('--ctl', help="Remove-CTL value, used for debugging very special problems with -r (default: %default)", default='search')
@@ -222,6 +261,7 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
     grp_dbg.add_option('--logmode', help="Set the logfile access mode, append or overwrite.", default='append', choices=('append', 'overwrite'))
     grp_dbg.add_option('--pqsitefile', help="This will replace the PQ listing download with a file. This will skip login and PQ site fetch, but not the download of the PQs themselves. If you want to skip that too, use -l.")
     
+    # Journal and map file options
     grp_journal = optparse.OptionGroup(parser, "Journal and map options","""These are special options that will allow PqDL to remember which PQs have already been downloaded. This is based on the PQ latest generation date, if the PQ gets generated again, it will be downloaded. The journal file is an .ini file (by default filestate.txt) that can be used for the mappings too. The section for this feature is [Log].""")    
     grp_journal.add_option('-j', '--journal', help="Create a download journal file. Files downloaded while using -j there won't be downloaded again (requires -j or --usejournal)", default=False, action='store_true')
     grp_journal.add_option('--usejournal', help="Like -j, but in read-only mode, it won't add new PQs or pqloader mappings to the journal (-j or this one!)", default=False, action='store_true')
@@ -229,56 +269,75 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
     grp_journal.add_option('--journalfile', help="Filename of journal file [default: %default]", default="filestate.txt")
     parser.add_option_group(grp_journal)
     
+    # GSAK options
     grp_map = optparse.OptionGroup(parser, "GSAK/pqloader file mappings options","""This is a feature made for those who use PqDL in conjunction with pqloader. pqloader will take the first word in a PQs file name to decide in which database the PQs will be saved. This feature allows you to add this prefix automatically after downloading the PQs, so you don't longer need to rename your PQs online! This feature will use an .ini file like -j (this can be the same one, the default is filestate.txt too). In order to use this, you need to add a new section [Map] to the .ini file and mappings like My-PQ-Name=PQ-Prefix (one per line). You can use the name, friendlyname, date or ID, but no wildcards yet.""")
     grp_map.add_option('-m', '--mappings', help="Assign a GSAK Database for pqloader to every PQ, requires journal", default=False, action='store_true')
     grp_map.add_option('--mapfile', help="File that contains the mapping section, default is the journal file. [default: %default, or the custom journal file if set]. For usage examples look at the project site.", default="filestate.txt", action='store_true')
     grp_map.add_option('--sep', help="Seperator for pqloader [default: '%default']", default=" ", action='store_true')
     parser.add_option_group(grp_map)
 
+    # back to core
     parser.add_option('--myfinds', help="Trigger a My Finds Pocket Query if possible (you'll most likely need to run this program again if the PQ is not generated fast enough, so consider using --myfinds with -l)", default=False, action='store_true')
     pr, ar = parser.parse_args()
     
+    # Alternate way to set options, with a pqdl.ini that should be located
+    # in the -o or the program file directory.
+    
     parser = ConfigParser.ConfigParser()
+    # Multiple locations, it will prefer the first one
     parser.read([
         os.path.join(pr.outputdir, 'pqdl.ini'),
         os.path.join(os.path.dirname(sys.argv[0]),'pqdl.ini')
     ])
-    
+    # [Options]
+    # should contain key=value where key is a optparse name
     if parser.has_section('Options'):
         for setting in parser.items('Options'):
             setattr(pr, *setting)
-    
+    # [Arguments]
+    # should contain randomkey=value where randomkey can be random, value
+    # should be a valid argument.
     if parser.has_section('Arguments'):
         for setting in parser.items('Arguments'):
             ar.append(setting[1])
 
-
+    # Check if arguments are valid
+    
+    # If no simulation, require username
     if not pr.username and not pr.pqsitefile:
         print_help()
         logger.critical("Please specify a username, I won't use mine :-)")
         sys.exit(1)
-
+        
+    # If mappings are used and the journal file has not the default value,
+    # but the mapfile, overwrite the mapfile with the journalfile path.
     if (pr.mappings) and (pr.journalfile != 'filestate.txt') \
        and (pr.mapfile == 'filestate.txt'):
         pr.mapfile = pr.journalfile
     
+    # If no simulation and password, request it.
     if not pr.password and not pr.pqsitefile:
         pr.password = getpass.getpass("\nPassword for %s: " % pr.username)
         print ''
-        
+    
+    # Sorry, but read-write and read-only can't be used at the same time :)
     if pr.journal and pr.usejournal:
         print_help()
-        logger.critical("You should decide if you want to write to the journal file or not. Please use --usejournal *or* -j !")
+        logger.critical("You should decide if you want to write to the journal "
+                        "file or not. Please use --usejournal *or* -j !")
         sys.exit(1)
 
+    # If you don't unzip, the zip will be kept anyway.
     if pr.keepzip and not pr.unzip:
         print_help()
         logger.critical("You can't use --keepzip without -z (--unzip).")
         sys.exit(1)
         
+    # Shortcut for debug logging
     if pr.debug:
         level = logging.DEBUG
     else:
+        # Logging level mappings including the selfmade one (see above)
         levels = {
             'HTTPDEBUG': 5,
             'DEBUG': logging.DEBUG,
@@ -291,12 +350,14 @@ Please don't abuse it. If any argument (username, password, PQ names, ...)contai
         
     logging.root.setLevel(level)
     
+    # Assign the logfile to the root logger if specified and setup the logging
     if pr.logfile:
         filehandler = logging.FileHandler(pr.logfile, 
                                           mode = ('a' if pr.logmode == 'append' 
                                                   else 'w'))
         filehandler.formatter = logging.Formatter(
-            "%(module)s line %(lineno)d - %(asctime)s - %(levelname)s - %(funcName)s - %(name)s - %(message)s")
+            "%(module)s line %(lineno)d - %(asctime)s - %(levelname)s - \
+            %(funcName)s - %(name)s - %(message)s")
         logging.root.addHandler(filehandler)
         
     return pr, ar

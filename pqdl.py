@@ -16,15 +16,17 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
-"""PQdl is a tool that can download Pocket Queries from geocaching.com.
+"""
+PQdl is a tool that can download Pocket Queries from geocaching.com.
 Pocket Queries that contain more than 500 caches won't be sent per mail, so you
 need to do it by hand or with this script.
 This script is written by leoluk.
 Please look at www.leoluk.de/paperless-caching/pqdl for updates.
+
 """
 
 __version__ = "0.3.3"
-__status__ = "trunk"
+__status__ = "stable"
 __author__ = "Leopold Schabel"
 
 ### pylint

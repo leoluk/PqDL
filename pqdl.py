@@ -26,7 +26,7 @@ Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
 __version__ = "0.3.3"
-__status__ = "stable"
+__status__ = "trunk"
 __author__ = "Leopold Schabel"
 
 ### pylint
@@ -284,6 +284,14 @@ with -d -l to get the friendly name or other parameters.""")
                       "keypress. USeful if you invoke the script from a GUI "
                       "like GSAK and you don't want it to close.", default=False
                       , action='store_true')
+    parser.add_option('--noini', help="Ignore pqdl.ini.", default=False
+                      , action='store_true')
+    parser.add_option('--ini', help="Custom settings file. Syntax see online "
+                      "docs. If a file named pqdl.ini is found in the program "
+                      "or output dir, it will be used automatically. If you "
+                      "specify it using this option, it will be searched "
+                      "in the output (-o) path.", 
+                      default="pqdl.ini")
 
     # ZIP options
     grp_zip = optparse.OptionGroup(parser, "ZIP options",
@@ -314,10 +322,10 @@ want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
 
     # Debug and logging options
     grp_dbg = optparse.OptionGroup(parser, "Logging options", """They are lots
-    of debug options. You should always use -d if the program doesn not exactly
-    does what it's supposed to do, they are lots of interesting debug outputs.
-    The other debug options are only needed for debugging special problems with
-    the parser. PLEASE ALWAYS USE -d IF YOU SEND ME A BUG REPORT!""")
+of debug options. You should always use -d if the program doesn not exactly
+does what it's supposed to do, they are lots of interesting debug outputs.
+The other debug options are only needed for debugging special problems with
+the parser. PLEASE ALWAYS USE -d IF YOU SEND ME A BUG REPORT!""")
     grp_dbg.add_option('-d', '--debug', help="Debug output, will set --loglevel"
                        " to DEBUG", default=False, action='store_true')
     grp_dbg.add_option('--ctl', help="Remove-CTL value, used for debugging very"
@@ -342,17 +350,12 @@ want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
 
     # Journal and map file options
     grp_journal = optparse.OptionGroup(parser, "Journal and map options",
-                                       """These are special options that will
-                                       allow PqDL to remember which PQs have
-                                       already been downloaded. This is based
-                                       on the PQ latest generation date, if the
-                                       PQ gets generated again,
-                                       it will be downloaded.
-                                       The journal file is an .ini file
-                                       (by default filestate.txt)
-                                       that can be used for the mappings too.
-                                       The section for this feature is [Log].
-                                       """
+"""These are special options that will allow PqDL to remember which PQs have
+already been downloaded. This is based on the PQ latest generation date, if the
+PQ gets generated again, it will be downloaded.
+The journal file is an .ini file (by default filestate.txt) that can be used 
+for the mappings too. The section for this feature is [Log].
+"""
                                        )
     grp_journal.add_option('-j', '--journal', help="Create a download journal "
                            "file. Files downloaded while using -j there won't "
@@ -371,21 +374,16 @@ want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
     # GSAK options
     grp_map = optparse.OptionGroup(parser,
                                    "GSAK/pqloader file mappings options",
-                                   """This is a feature made for those who use
-                                   PqDL in conjunction with pqloader. pqloader
-                                   will take the first word in a PQs file name
-                                   to decide in which database the PQs will be
-                                   saved. This feature allows you to add this
-                                   prefix automatically after downloading the
-                                   PQs, so you don't longer need to rename your
-                                   PQs online! This feature will use an .ini
-                                   file like -j (this can be the same one, the
-                                   default is filestate.txt too). In order to
-                                   use this, you need to add a new section
-                                   [Map] to the .ini file and mappings like
-                                   My-PQ-Name=PQ-Prefix (one per line).
-                                   You can use the name, friendlyname, date or
-                                   ID, but no wildcards yet.""")
+"""This is a feature made for those who use PqDL in conjunction with pqloader. 
+pqloader will take the first word in a PQs file name to decide in which database
+the PQs will be saved. This feature allows you to add this prefix automatically 
+after downloading the PQs, so you don't longer need to rename your
+PQs online! This feature will use an .ini file like -j (this can be the same 
+one, the default is filestate.txt too). In order to use this, you need to add 
+a new section [Map] to the .ini file and mappings like My-PQ-Name=PQ-Prefix 
+(one per line). You can use the name, friendlyname, date or ID, but no 
+wildcards yet."""
+)
 
     grp_map.add_option('-m', '--mappings', help="Assign a GSAK Database for "
                        "pqloader to every PQ, requires journal", default=False,
@@ -410,24 +408,27 @@ want to your PQs with GSAK or pqloader, there's no need to unzip them!""")
 
     # Alternate way to set options, with a pqdl.ini that should be located
     # in the -o or the program file directory.
+    
+    if not opts.noini:
 
-    parser = ConfigParser.ConfigParser()
-    # Multiple locations, it will prefer the first one
-    parser.read([
-        os.path.join(opts.outputdir, 'pqdl.ini'),
-        os.path.join(os.path.dirname(sys.argv[0]),'pqdl.ini')
-    ])
-    # [Options]
-    # should contain key=value where key is a optparse name
-    if parser.has_section('Options'):
-        for setting in parser.items('Options'):
-            setattr(opts, setting[0], setting[1])
-    # [Arguments]
-    # should contain randomkey=value where randomkey can be random, value
-    # should be a valid argument.
-    if parser.has_section('Arguments'):
-        for setting in parser.items('Arguments'):
-            args.append(setting[1])
+        parser = ConfigParser.ConfigParser()
+        # Multiple locations, it will prefer the first one
+        parser.read([
+            opts.ini,
+            os.path.join(opts.outputdir, 'pqdl.ini'),
+            os.path.join(os.path.dirname(sys.argv[0]),'pqdl.ini')
+        ])
+        # [Options]
+        # should contain key=value where key is a optparse name
+        if parser.has_section('Options'):
+            for setting in parser.items('Options'):
+                setattr(opts, setting[0], setting[1])
+        # [Arguments]
+        # should contain randomkey=value where randomkey can be random, value
+        # should be a valid argument.
+        if parser.has_section('Arguments'):
+            for setting in parser.items('Arguments'):
+                args.append(setting[1])
 
     # Check if base64-encoded password is specified, if yes, replace the
     # password field with it.   
@@ -560,6 +561,7 @@ class PqBrowser(mechanize.Browser):
         self.form['ctl00$ContentBody$myPassword'] = password
         self.submit()
         response = self.response().read()
+        logger.log(5, response)
         if not 'http://www.geocaching.com/my/' in response:
 
             logger.critical("Could not log in. Please check your password. "

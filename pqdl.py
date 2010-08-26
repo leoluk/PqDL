@@ -57,13 +57,6 @@ import webbrowser
 import functools
 import base64
 
-# For internal debugging
-#import socks
-#import socket
-#socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 1080)
-#socket.socket = socks.socksocket
-
-
 from time import sleep
 
 # Inits the default logger; I use a seperate logger for every part of the
@@ -298,6 +291,9 @@ with -d -l to get the friendly name or other parameters.""")
                       default=False, 
                       action='store_true')
     parser.add_option('--loginsecure', help="Use HTTPS for login requests.", 
+                      default=False, 
+                      action='store_true')
+    parser.add_option('--netdebug', help="For internal debugging. Do not use.", 
                       default=False, 
                       action='store_true')
     parser.add_option('--noini', help="Ignore pqdl.ini.", default=False
@@ -568,8 +564,7 @@ class PqBrowser(mechanize.Browser):
     def login_gc(self, username, password, urlbase):
         """Login to GC.com site."""
         logger = logging.getLogger('browser.login')
-        self.open("%s/login/default.aspx?RESET=Y&redir="
-                  "http%%3a%%2f%%2fwww.geocaching.com%%2fpocket%%2fdefault.aspx"
+        self.open("%s/login/default.aspx?RESET=Y"
                   % urlbase)
         #for f in self.forms():
         #   print f
@@ -579,7 +574,7 @@ class PqBrowser(mechanize.Browser):
         self.submit()
         response = self.response().read()
         logger.log(5, response)
-        if not 'http://www.geocaching.com/my/' in response:
+        if not 'geocaching.com/my/' in response:
 
             logger.critical("Could not log in. Please check your password. "
                             "If your username or password contains spaces, "
@@ -632,7 +627,7 @@ class PqBrowser(mechanize.Browser):
         if not self.pqsimulate:
             response = self.open(
                 "%s/pocket/default.aspx" % BASE_URL).read()
-            if not "http://www.geocaching.com/my/" in response:
+            if not "geocaching.com/my/" in response:
                 logger.error("Invalid PQ site. Not logged in?")
         else:
             response = open(self.pqfile, 'r')
@@ -720,6 +715,13 @@ def main():
     opts, args = optparse_setup()
     global BASE_URL
     BASE_URL = RAW_BASE_URL % ("s" if opts.allsecure else "")
+    
+    if opts.netdebug:
+        import socks
+        import socket
+        socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 1080)
+        socket.socket = socks.socksocket
+    
     browser = PqBrowser()
     excludes = []
     for arg in args:
@@ -757,7 +759,9 @@ def main():
     else:
         logger.info("Logging in as {username}".format(username=opts.username))
         browser.login_gc(opts.username, opts.password,
-                         RAW_BASE_URL % ("s" if opts.loginsecure else ""))
+                         RAW_BASE_URL % ("s" if (opts.loginsecure or 
+                                         opts.allsecure )
+                                         else ""))
         delay()
 
     logger = logging.getLogger('main.linkdb')

@@ -35,6 +35,9 @@ __author__ = "Leopold Schabel"
 
 # stdlib imports
 
+RAW_BASE_URL = "http%s://www.geocaching.com"
+BASE_URL = RAW_BASE_URL % ""
+
 import mechanize
 import optparse
 import cookielib
@@ -53,6 +56,13 @@ import uuid
 import webbrowser
 import functools
 import base64
+
+# For internal debugging
+#import socks
+#import socket
+#socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 1080)
+#socket.socket = socks.socksocket
+
 
 from time import sleep
 
@@ -284,6 +294,12 @@ with -d -l to get the friendly name or other parameters.""")
                       "keypress. USeful if you invoke the script from a GUI "
                       "like GSAK and you don't want it to close.", default=False
                       , action='store_true')
+    parser.add_option('--allsecure', help="Use HTTPS for all requests.", 
+                      default=False, 
+                      action='store_true')
+    parser.add_option('--loginsecure', help="Use HTTPS for login requests.", 
+                      default=False, 
+                      action='store_true')
     parser.add_option('--noini', help="Ignore pqdl.ini.", default=False
                       , action='store_true')
     parser.add_option('--ini', help="Custom settings file. Syntax see online "
@@ -549,11 +565,12 @@ class PqBrowser(mechanize.Browser):
         self.pqsimulate = False
         self.pqfile = None
 
-    def login_gc(self, username, password):
+    def login_gc(self, username, password, urlbase):
         """Login to GC.com site."""
         logger = logging.getLogger('browser.login')
-        self.open("http://www.geocaching.com/login/default.aspx?RESET=Y&redir="
-                  "http%3a%2f%2fwww.geocaching.com%2fpocket%2fdefault.aspx")
+        self.open("%s/login/default.aspx?RESET=Y&redir="
+                  "http%%3a%%2f%%2fwww.geocaching.com%%2fpocket%%2fdefault.aspx"
+                  % urlbase)
         #for f in self.forms():
         #   print f
         self.select_form(name="aspnetForm")
@@ -573,7 +590,7 @@ class PqBrowser(mechanize.Browser):
         """Deletes downloadable PQs with given ids."""
 
         logger = logging.getLogger('browser.delpq')
-        self.open("http://www.geocaching.com/pocket/default.aspx")
+        self.open("%s/pocket/default.aspx" % BASE_URL)
         self.select_form(name="aspnetForm")
         self.form.set_all_readonly(False)
         self.form['ctl00$ContentBody$PQDownloadList$hidIds'] = (",".join(chkid)
@@ -589,7 +606,7 @@ class PqBrowser(mechanize.Browser):
         logger = logging.getLogger('browser.myfinds')
         try:
             logger.info("Trigger My Finds PQ...")
-            self.open("http://www.geocaching.com/pocket/default.aspx")
+            self.open("%s/pocket/default.aspx" % BASE_URL)
             self.select_form(name="aspnetForm")
             self.form.set_all_readonly(False)
             self.form['ctl00$ContentBody$PQListControl1$btnScheduleNow'] = (
@@ -601,7 +618,7 @@ class PqBrowser(mechanize.Browser):
 
     def find_ctl(self):
         """Find the current GC.com ctl value."""
-        self.open("http://www.geocaching.com/pocket/default.aspx")
+        self.open("%s/pocket/default.aspx" % BASE_URL)
         response = self.response().read()
         isinstance(response, str)
         tmpl = ("javascript:__doPostBack('ctl00$ContentBody$PQDownloadList$"
@@ -614,7 +631,7 @@ class PqBrowser(mechanize.Browser):
         logger = logging.getLogger('browser.parser')
         if not self.pqsimulate:
             response = self.open(
-                "http://www.geocaching.com/pocket/default.aspx").read()
+                "%s/pocket/default.aspx" % BASE_URL).read()
             if not "http://www.geocaching.com/my/" in response:
                 logger.error("Invalid PQ site. Not logged in?")
         else:
@@ -701,6 +718,8 @@ def main():
     """Main routine that contains the program logic."""
     ### Parsing options
     opts, args = optparse_setup()
+    global BASE_URL
+    BASE_URL = RAW_BASE_URL % ("s" if opts.allsecure else "")
     browser = PqBrowser()
     excludes = []
     for arg in args:
@@ -737,7 +756,8 @@ def main():
         browser.pqfile = opts.pqsitefile
     else:
         logger.info("Logging in as {username}".format(username=opts.username))
-        browser.login_gc(opts.username, opts.password)
+        browser.login_gc(opts.username, opts.password,
+                         RAW_BASE_URL % ("s" if opts.loginsecure else ""))
         delay()
 
     logger = logging.getLogger('main.linkdb')

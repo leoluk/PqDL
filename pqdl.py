@@ -26,7 +26,7 @@ Please look at www.leoluk.de/paperless-caching/pqdl for updates.
 """
 
 __version__ = "0.3.3"
-__status__ = "trunk"
+__status__ = "beta"
 __author__ = "Leopold Schabel"
 
 ### pylint
@@ -81,7 +81,7 @@ def gdelay(odelay):
 
 def check_update(browser=True):
     """This method checks for new updates on a compatible update server."""
-    
+
     updateserver = "http://update.leoluk.de"
 
     # Getting the logger for this method. I do this for every logical part of
@@ -189,7 +189,7 @@ def check_update(browser=True):
                                         'Program', 'version')))
 
         logger.info("More info on %s" % parser.get('Program', 'url'))
-    
+
     except BaseException:
         # End of the catchall block, will print a traceback along with the
         # error message.
@@ -287,14 +287,14 @@ with -d -l to get the friendly name or other parameters.""")
                       "keypress. USeful if you invoke the script from a GUI "
                       "like GSAK and you don't want it to close.", default=False
                       , action='store_true')
-    parser.add_option('--allsecure', help="Use HTTPS for all requests.", 
-                      default=False, 
+    parser.add_option('--allsecure', help="Use HTTPS for all requests.",
+                      default=False,
                       action='store_true')
-    parser.add_option('--loginsecure', help="Use HTTPS for login requests.", 
-                      default=False, 
+    parser.add_option('--loginsecure', help="Use HTTPS for login requests.",
+                      default=False,
                       action='store_true')
-    parser.add_option('--netdebug', help="For internal debugging. Do not use.", 
-                      default=False, 
+    parser.add_option('--netdebug', help="For internal debugging. Do not use.",
+                      default=False,
                       action='store_true')
     parser.add_option('--noini', help="Ignore pqdl.ini.", default=False
                       , action='store_true')
@@ -302,7 +302,7 @@ with -d -l to get the friendly name or other parameters.""")
                       "docs. If a file named pqdl.ini is found in the program "
                       "or output dir, it will be used automatically. If you "
                       "specify it using this option, it will be searched "
-                      "in the output (-o) path.", 
+                      "in the output (-o) path.",
                       default="pqdl.ini")
 
     # ZIP options
@@ -365,7 +365,7 @@ the parser. PLEASE ALWAYS USE -d IF YOU SEND ME A BUG REPORT!""")
 """These are special options that will allow PqDL to remember which PQs have
 already been downloaded. This is based on the PQ latest generation date, if the
 PQ gets generated again, it will be downloaded.
-The journal file is an .ini file (by default filestate.txt) that can be used 
+The journal file is an .ini file (by default filestate.txt) that can be used
 for the mappings too. The section for this feature is [Log].
 """
                                        )
@@ -386,14 +386,14 @@ for the mappings too. The section for this feature is [Log].
     # GSAK options
     grp_map = optparse.OptionGroup(parser,
                                    "GSAK/pqloader file mappings options",
-"""This is a feature made for those who use PqDL in conjunction with pqloader. 
+"""This is a feature made for those who use PqDL in conjunction with pqloader.
 pqloader will take the first word in a PQs file name to decide in which database
-the PQs will be saved. This feature allows you to add this prefix automatically 
+the PQs will be saved. This feature allows you to add this prefix automatically
 after downloading the PQs, so you don't longer need to rename your
-PQs online! This feature will use an .ini file like -j (this can be the same 
-one, the default is filestate.txt too). In order to use this, you need to add 
-a new section [Map] to the .ini file and mappings like My-PQ-Name=PQ-Prefix 
-(one per line). You can use the name, friendlyname, date or ID, but no 
+PQs online! This feature will use an .ini file like -j (this can be the same
+one, the default is filestate.txt too). In order to use this, you need to add
+a new section [Map] to the .ini file and mappings like My-PQ-Name=PQ-Prefix
+(one per line). You can use the name, friendlyname, date or ID, but no
 wildcards yet."""
 )
 
@@ -420,30 +420,30 @@ wildcards yet."""
 
     # Alternate way to set options, with a pqdl.ini that should be located
     # in the -o or the program file directory.
-    
+
     if not opts.noini:
 
-        parser = ConfigParser.ConfigParser()
+        oparse = ConfigParser.ConfigParser()
         # Multiple locations, it will prefer the first one
-        parser.read([
+        oparse.read([
             opts.ini,
             os.path.join(opts.outputdir, 'pqdl.ini'),
             os.path.join(os.path.dirname(sys.argv[0]),'pqdl.ini')
         ])
         # [Options]
         # should contain key=value where key is a optparse name
-        if parser.has_section('Options'):
-            for setting in parser.items('Options'):
+        if oparse.has_section('Options'):
+            for setting in oparse.items('Options'):
                 setattr(opts, setting[0], setting[1])
         # [Arguments]
         # should contain randomkey=value where randomkey can be random, value
         # should be a valid argument.
-        if parser.has_section('Arguments'):
-            for setting in parser.items('Arguments'):
+        if oparse.has_section('Arguments'):
+            for setting in oparse.items('Arguments'):
                 args.append(setting[1])
 
     # Check if base64-encoded password is specified, if yes, replace the
-    # password field with it.   
+    # password field with it.
     if opts.b64password:
         try:
             opts.password = base64.b64decode(opts.b64password)
@@ -470,9 +470,9 @@ wildcards yet."""
     # The password should be available now, so let's check if the user
     # requested it encoded to base64.
     if opts.getb64:
-        logger.info("Password as base64: %s", 
-                    base64.b64encode(opts.password))        
-    
+        logger.info("Password as base64: %s",
+                    base64.b64encode(opts.password))
+
     # Sorry, but read-write and read-only can't be used at the same time :)
     if opts.journal and opts.usejournal:
         print_help()
@@ -506,7 +506,7 @@ wildcards yet."""
     # Assign the logfile to the root logger if specified and setup the logging
     if opts.logfile:
         filehandler = logging.FileHandler(opts.logfile,
-                                          mode = ('a' if 
+                                          mode = ('a' if
                                                   opts.logmode == 'append'
                                                   else 'w'))
         filehandler.formatter = logging.Formatter(
@@ -525,13 +525,14 @@ class PqDLError(Exception):
     def __str__(self):
         return repr(self.value)
 
+
 class LoginError(PqDLError):
     """Wrong password error."""
     pass
 
 class PqBrowser(mechanize.Browser):
     """A mechanize.Browser() that provides additional GC.com access features."""
-        
+
     def __init__(self):
         """Inits the mechanize browser class."""
         mechanize.Browser.__init__(self)
@@ -569,12 +570,12 @@ class PqBrowser(mechanize.Browser):
         #for f in self.forms():
         #   print f
         self.select_form(name="aspnetForm")
-        self.form['ctl00$ContentBody$myUsername'] = username
-        self.form['ctl00$ContentBody$myPassword'] = password
+        self.form['ctl00$SiteContent$tbUsername'] = username
+        self.form['ctl00$SiteContent$tbPassword'] = password
         self.submit()
         response = self.response().read()
         logger.log(5, response)
-        if not 'geocaching.com/my/' in response:
+        if not '/my/default.aspx' in response:
 
             logger.critical("Could not log in. Please check your password. "
                             "If your username or password contains spaces, "
@@ -627,7 +628,7 @@ class PqBrowser(mechanize.Browser):
         if not self.pqsimulate:
             response = self.open(
                 "%s/pocket/default.aspx" % BASE_URL).read()
-            if not "geocaching.com/my/" in response:
+            if not "/my/default.aspx" in response:
                 logger.error("Invalid PQ site. Not logged in?")
         else:
             response = open(self.pqfile, 'r')
@@ -698,7 +699,7 @@ def get_mapstr(mparser, link):
         return ""
 
 def check_linkmatch(link, linklist):
-    """Checks if a given link matches a link template in the linklist."""
+    """Checks if a given link matches a link in the linklist."""
     result = False
     logger = logging.getLogger('main.linkmatch')
     for key in ('chkdelete', 'friendlyname', 'name', 'date', 'count'):
@@ -715,13 +716,13 @@ def main():
     opts, args = optparse_setup()
     global BASE_URL
     BASE_URL = RAW_BASE_URL % ("s" if opts.allsecure else "")
-    
+
     if opts.netdebug:
         import socks
         import socket
         socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 1080)
         socket.socket = socks.socksocket
-    
+
     browser = PqBrowser()
     excludes = []
     for arg in args:
@@ -759,7 +760,7 @@ def main():
     else:
         logger.info("Logging in as {username}".format(username=opts.username))
         browser.login_gc(opts.username, opts.password,
-                         RAW_BASE_URL % ("s" if (opts.loginsecure or 
+                         RAW_BASE_URL % ("s" if (opts.loginsecure or
                                          opts.allsecure )
                                          else ""))
         delay()
@@ -821,7 +822,7 @@ def main():
                                     'with date {date} has already been '
                                     'downloaded.'.format(**link))
                         continue
-                except (ConfigParser.NoOptionError, 
+                except (ConfigParser.NoOptionError,
                         ConfigParser.NoSectionError):
                     pass
             if (check_linkmatch(link, excludes)):
@@ -879,30 +880,30 @@ def main():
     class FilenameDict(object):
         """A special dictionary for filename templates whose values depend on
         the parameters given to the constructor (link and suffix).
-        
+
         """
         def __init__(self, link, suffix):
             """Inits the FilenameDict.
-            
+
             link -- dictionary with link template values
             suffix -- the filename suffix, as example 'zip' or 'gpx'
-            
+
             """
             self.suffix = suffix
             self.link = link
             self.base = self.single if opts.singlefile else self.basic
 
         basic = {
-                'normal':'{mapstr}{chkdelete}-{friendlyname}_{date}',
+                'normal':'{mapstr}{chkdelete}_{friendlyname}_{date}',
                 'myfinds':'{mapstr}MyFinds_{date}',
-                'waypoints':('{mapstr}{chkdelete}-'
+                'waypoints':('{mapstr}{chkdelete}_'
                              '{friendlyname}_{date}_waypoints')
                 }
 
         single = {
-                'normal':'{mapstr}{chkdelete}-{friendlyname}',
+                'normal':'{mapstr}{chkdelete}_{friendlyname}',
                 'myfinds':'{mapstr}MyFinds',
-                'waypoints':'{mapstr}{chkdelete}-{friendlyname}_waypoints'
+                'waypoints':'{mapstr}{chkdelete}_{friendlyname}_waypoints'
                 }
 
         def __getattr__(self, name):
@@ -934,7 +935,7 @@ def main():
             for info in zfile.infolist():
                 isinstance(info, zipfile.ZipInfo)
                 logger.debug("{filename} (size: {size})".
-                             format(filename=info.filename, 
+                             format(filename=info.filename,
                                     size=info.file_size))
                 zfile.extract(info)
 
@@ -998,7 +999,7 @@ def main():
 
 if __name__ == "__main__":
     logging.info("PQdl v%s (%s) by leoluk. Updates and help on "
-                 "www.leoluk.de/paperless-caching/pqdl" , 
+                 "www.leoluk.de/paperless-caching/pqdl" ,
                  __version__, __status__)
     main()
     logging.info("Done")

@@ -569,9 +569,9 @@ class PqBrowser(mechanize.Browser):
                   % urlbase)
         #for f in self.forms():
         #   print f
-        self.select_form(name="aspnetForm")
-        self.form['ctl00$SiteContent$tbUsername'] = username
-        self.form['ctl00$SiteContent$tbPassword'] = password
+        self.select_form(action="/account/login?RESET=Y")
+        self.form['Username'] = username
+        self.form['Password'] = password
         self.submit()
         response = self.response().read()
         logger.log(5, response)
@@ -587,7 +587,7 @@ class PqBrowser(mechanize.Browser):
 
         logger = logging.getLogger('browser.delpq')
         self.open("%s/pocket/default.aspx" % BASE_URL)
-        self.select_form(name="aspnetForm")
+        self.select_form(id="aspnetForm")
         self.form.set_all_readonly(False)
         self.form['ctl00$ContentBody$PQDownloadList$hidIds'] = (",".join(chkid)
                                                                 + ",")
@@ -603,7 +603,7 @@ class PqBrowser(mechanize.Browser):
         try:
             logger.info("Trigger My Finds PQ...")
             self.open("%s/pocket/default.aspx" % BASE_URL)
-            self.select_form(name="aspnetForm")
+            self.select_form(id="aspnetForm")
             self.form.set_all_readonly(False)
             self.form['ctl00$ContentBody$PQListControl1$btnScheduleNow'] = (
                 "Add to Queue"
